@@ -19,6 +19,7 @@ package logutil
 import (
 	"flag"
 	"fmt"
+	"github.com/golang/glog"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,6 +31,10 @@ var (
 	keepLogs          = flag.Duration("keep_logs", 0*time.Second, "keep logs for this long (zero to keep forever)")
 	purgeLogsInterval = flag.Duration("purge_logs_interval", 1*time.Hour, "how often try to remove old logs")
 )
+
+func init() {
+	flag.Uint64Var(&glog.MaxSize, "log_rotate_max_size", glog.MaxSize, "size in bytes at which logs are rotated (glog.MaxSize)")
+}
 
 // parse parses a file name (as used by glog) and returns its process
 // name and timestamp.
