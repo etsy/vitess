@@ -23,12 +23,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	"vitess.io/vitess/go/vt/log"
+	"vitess.io/vitess/go/vt/sqlparser"
 	"vitess.io/vitess/go/vt/srvtopo"
 	"vitess.io/vitess/go/vt/topo"
 	"vitess.io/vitess/go/vt/vterrors"
@@ -250,9 +252,28 @@ func (res *Resolver) StreamExecute(
 	keyspace string,
 	tabletType topodatapb.TabletType,
 	destination key.Destination,
+	safeSession *SafeSession,
 	options *querypb.ExecuteOptions,
 	callback func(*sqltypes.Result) error,
 ) error {
+
+	logStats := NewLogStats(ctx, "StreamExecute", sql, bindVars)
+	stmtType := sqlparser.Preview(sql)
+	logStats.StmtType = stmtType.String()
+	defer logStats.Send()
+
+	// handle SET workload queries in order to switch between oltp and olap modes
+	if stmtType == sqlparser.StmtSet {
+		result, setErr := res.handleSetWorkload(safeSession, sql, logStats)
+		if setErr != nil {
+			return setErr
+		}
+		if err := callback(result); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	rss, err := res.resolver.ResolveDestination(ctx, keyspace, tabletType, destination)
 	if err != nil {
 		return err
@@ -493,6 +514,49 @@ func (res *Resolver) vstreamOneShard(ctx context.Context, keyspace, shard string
 // GetGatewayCacheStatus returns a displayable version of the Gateway cache.
 func (res *Resolver) GetGatewayCacheStatus() gateway.TabletCacheStatusList {
 	return res.scatterConn.GetGatewayCacheStatus()
+}
+
+// handleSetWorkload like handleSet above but handles only SET workload queries, all other sets are unsupported
+// needed for StreamExecute which does not support transactions
+func (res *Resolver) handleSetWorkload(safeSession *SafeSession, sql string, logStats *LogStats) (*sqltypes.Result, error) {
+	vals, scope, err := sqlparser.ExtractSetValues(sql)
+	execStart := time.Now()
+	logStats.PlanTime = execStart.Sub(logStats.StartTime)
+	defer func() {
+		logStats.ExecuteTime = time.Since(execStart)
+	}()
+
+	if err != nil {
+		return &sqltypes.Result{}, vterrors.New(vtrpcpb.Code_INVALID_ARGUMENT, err.Error())
+	}
+
+	if scope == sqlparser.GlobalStr {
+		return &sqltypes.Result{}, vterrors.New(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported in set: global")
+	}
+
+	for k, v := range vals {
+		if k.Scope == sqlparser.GlobalStr {
+			return &sqltypes.Result{}, vterrors.New(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported in set: global")
+		}
+
+		if k.Key != "workload" {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported construct: %s", sql)
+		}
+
+		val, ok := v.(string)
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unexpected value type for workload: %T", v)
+		}
+		out, ok := querypb.ExecuteOptions_Workload_value[strings.ToUpper(val)]
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "invalid workload: %s", val)
+		}
+		if safeSession.Options == nil {
+			safeSession.Options = &querypb.ExecuteOptions{}
+		}
+		safeSession.Options.Workload = querypb.ExecuteOptions_Workload(out)
+	}
+	return &sqltypes.Result{}, nil
 }
 
 // StrsEquals compares contents of two string slices.

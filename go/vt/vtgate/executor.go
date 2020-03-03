@@ -649,6 +649,49 @@ func (e *Executor) handleSet(ctx context.Context, safeSession *SafeSession, sql 
 	return &sqltypes.Result{}, nil
 }
 
+// handleSetWorkload like handleSet above but handles only SET workload queries, all other sets are unsupported
+// needed for StreamExecute which does not support transactions
+func (e *Executor) handleSetWorkload(safeSession *SafeSession, sql string, logStats *LogStats) (*sqltypes.Result, error) {
+	vals, scope, err := sqlparser.ExtractSetValues(sql)
+	execStart := time.Now()
+	logStats.PlanTime = execStart.Sub(logStats.StartTime)
+	defer func() {
+		logStats.ExecuteTime = time.Since(execStart)
+	}()
+
+	if err != nil {
+		return &sqltypes.Result{}, vterrors.New(vtrpcpb.Code_INVALID_ARGUMENT, err.Error())
+	}
+
+	if scope == sqlparser.GlobalStr {
+		return &sqltypes.Result{}, vterrors.New(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported in set: global")
+	}
+
+	for k, v := range vals {
+		if k.Scope == sqlparser.GlobalStr {
+			return &sqltypes.Result{}, vterrors.New(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported in set: global")
+		}
+
+		if k.Key != "workload" {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported construct: %s", sql)
+		}
+
+		val, ok := v.(string)
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unexpected value type for workload: %T", v)
+		}
+		out, ok := querypb.ExecuteOptions_Workload_value[strings.ToUpper(val)]
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "invalid workload: %s", val)
+		}
+		if safeSession.Options == nil {
+			safeSession.Options = &querypb.ExecuteOptions{}
+		}
+		safeSession.Options.Workload = querypb.ExecuteOptions_Workload(out)
+	}
+	return &sqltypes.Result{}, nil
+}
+
 func (e *Executor) handleSetVitessMetadata(ctx context.Context, session *SafeSession, k sqlparser.SetKey, v interface{}) (*sqltypes.Result, error) {
 	//TODO(kalfonso): move to its own acl check and consolidate into an acl component that can handle multiple operations (vschema, metadata)
 	allowed := vschemaacl.Authorized(callerid.ImmediateCallerIDFromContext(ctx))
@@ -1125,8 +1168,9 @@ func (e *Executor) handleComment(sql string) (*sqltypes.Result, error) {
 
 // StreamExecute executes a streaming query.
 func (e *Executor) StreamExecute(ctx context.Context, method string, safeSession *SafeSession, sql string, bindVars map[string]*querypb.BindVariable, target querypb.Target, callback func(*sqltypes.Result) error) (err error) {
+	stmtType := sqlparser.Preview(sql)
 	logStats := NewLogStats(ctx, method, sql, bindVars)
-	logStats.StmtType = sqlparser.Preview(sql).String()
+	logStats.StmtType = stmtType.String()
 	defer logStats.Send()
 
 	if bindVars == nil {
@@ -1137,8 +1181,21 @@ func (e *Executor) StreamExecute(ctx context.Context, method string, safeSession
 
 	// check if this is a stream statement for messaging
 	// TODO: support keyRange syntax
-	if logStats.StmtType == sqlparser.StmtStream.String() {
+	switch stmtType {
+	case sqlparser.StmtStream:
+		// check if this is a stream statement for messaging
+		// TODO: support keyRange syntax
 		return e.handleMessageStream(ctx, safeSession, sql, target, callback, vcursor, logStats)
+	case sqlparser.StmtSet:
+		// handle SET workload queries in order to switch between oltp and olap modes
+		result, setErr := e.handleSetWorkload(safeSession, sql, logStats)
+		if setErr != nil {
+			return setErr
+		}
+		if err := callback(result); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	plan, err := e.getPlan(
