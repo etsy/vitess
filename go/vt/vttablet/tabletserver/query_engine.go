@@ -123,6 +123,7 @@ type QueryEngine struct {
 	mu               sync.RWMutex
 	tables           map[string]*schema.Table
 	plans            *cache.LRUCache
+	streamPlans      *cache.LRUCache
 	queryRuleSources *rules.Map
 
 	queryStatsMu sync.RWMutex
@@ -182,6 +183,7 @@ func NewQueryEngine(checker connpool.MySQLChecker, se *schema.Engine, config tab
 		se:                 se,
 		tables:             make(map[string]*schema.Table),
 		plans:              cache.NewLRUCache(int64(config.QueryPlanCacheSize)),
+		streamPlans:        cache.NewLRUCache(int64(config.QueryPlanCacheSize)),
 		queryRuleSources:   rules.NewMap(),
 		queryPoolWaiterCap: sync2.NewAtomicInt64(int64(config.QueryPoolWaiterCap)),
 		queryStats:         make(map[string]*QueryStats),
@@ -256,6 +258,15 @@ func NewQueryEngine(checker connpool.MySQLChecker, se *schema.Engine, config tab
 		stats.Publish("QueryCacheOldest", stats.StringFunc(func() string {
 			return fmt.Sprintf("%v", qe.plans.Oldest())
 		}))
+
+		stats.NewGaugeFunc("StreamQueryCacheLength", "Streaming query engine query cache length", qe.streamPlans.Length)
+		stats.NewGaugeFunc("StreamQueryCacheSize", "Streaming query engine query cache size", qe.streamPlans.Size)
+		stats.NewGaugeFunc("StreamQueryCacheCapacity", "Streaming query engine query cache capacity", qe.streamPlans.Capacity)
+		stats.NewCounterFunc("StreamQueryCacheEvictions", "Streaming query engine query cache evictions", qe.streamPlans.Evictions)
+		stats.Publish("StreamQueryCacheOldest", stats.StringFunc(func() string {
+			return fmt.Sprintf("%v", qe.streamPlans.Oldest())
+		}))
+
 		_ = stats.NewCountersFuncWithMultiLabels("QueryCounts", "query counts", []string{"Table", "Plan"}, qe.getQueryCount)
 		_ = stats.NewCountersFuncWithMultiLabels("QueryTimesNs", "query times in ns", []string{"Table", "Plan"}, qe.getQueryTime)
 		_ = stats.NewCountersFuncWithMultiLabels("QueryRowCounts", "query row counts", []string{"Table", "Plan"}, qe.getQueryRowCount)
@@ -312,6 +323,7 @@ func (qe *QueryEngine) Close() {
 	// Close in reverse order of Open.
 	qe.se.UnregisterNotifier("qe")
 	qe.plans.Clear()
+	qe.streamPlans.Clear()
 	qe.tables = make(map[string]*schema.Table)
 	qe.streamConns.Close()
 	qe.conns.Close()
@@ -394,18 +406,31 @@ func (qe *QueryEngine) getQueryConn(ctx context.Context) (*connpool.DBConn, erro
 	return qe.conns.Get(ctx)
 }
 
-// GetStreamPlan is similar to GetPlan, but doesn't use the cache
-// and doesn't enforce a limit. It just returns the parsed query.
+// GetStreamPlan returns the TabletPlan that for the query. Plans are cached in
+// a separate cache.LRUCache.
 func (qe *QueryEngine) GetStreamPlan(sql string) (*TabletPlan, error) {
+	if cacheResult, ok := qe.streamPlans.Get(sql); ok {
+		return cacheResult.(*TabletPlan), nil
+	}
+
 	qe.mu.RLock()
 	defer qe.mu.RUnlock()
-	splan, err := planbuilder.BuildStreaming(sql, qe.tables)
+	statement, err := sqlparser.Parse(sql)
+	if err != nil {
+		return nil, err
+	}
+	splan, err := planbuilder.BuildStreaming(statement, qe.tables)
 	if err != nil {
 		return nil, err
 	}
 	plan := &TabletPlan{Plan: splan}
 	plan.Rules = qe.queryRuleSources.FilterByPlan(sql, plan.PlanID, plan.TableName().String())
 	plan.buildAuthorized()
+
+	if !sqlparser.SkipQueryPlanCacheDirective(statement) {
+		qe.streamPlans.Set(sql, plan)
+	}
+
 	return plan, nil
 }
 
@@ -426,6 +451,7 @@ func (qe *QueryEngine) GetMessageStreamPlan(name string) (*TabletPlan, error) {
 // ClearQueryPlanCache should be called if query plan cache is potentially obsolete
 func (qe *QueryEngine) ClearQueryPlanCache() {
 	qe.plans.Clear()
+	qe.streamPlans.Clear()
 }
 
 // IsMySQLReachable returns true if we can connect to MySQL.
@@ -448,6 +474,7 @@ func (qe *QueryEngine) schemaChanged(tables map[string]*schema.Table, created, a
 	qe.tables = tables
 	if len(altered) != 0 || len(dropped) != 0 {
 		qe.plans.Clear()
+		qe.streamPlans.Clear()
 	}
 }
 
@@ -473,6 +500,7 @@ func (qe *QueryEngine) SetQueryPlanCacheCap(size int) {
 		size = 1
 	}
 	qe.plans.SetCapacity(int64(size))
+	qe.streamPlans.SetCapacity(int64(size))
 }
 
 // QueryPlanCacheCap returns the capacity of the query cache.
