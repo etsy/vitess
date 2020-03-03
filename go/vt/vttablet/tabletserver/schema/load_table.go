@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"flag"
 	"fmt"
 	"strconv"
 	"strings"
@@ -29,6 +30,10 @@ import (
 	"vitess.io/vitess/go/vt/vttablet/tabletserver/tabletenv"
 
 	querypb "vitess.io/vitess/go/vt/proto/query"
+)
+
+var (
+	schemaEngineHack = flag.Bool("schema_engine_hack", false, "avoid looking up schema info; probably breaks vindexes")
 )
 
 // LoadTable creates a Table from the schema info in the database.
@@ -64,6 +69,14 @@ func fetchColumns(ta *Table, conn *connpool.DBConn, sqlTableName string) error {
 	for _, field := range qr.Fields {
 		fieldTypes[field.Name] = field.Type
 	}
+	if *schemaEngineHack {
+		for fieldName, fieldType := range fieldTypes {
+			if fieldDefault, err := sqltypes.NewValue(fieldType, []byte("")); err != nil {
+				ta.AddColumn(fieldName, fieldType, fieldDefault, "")
+			}
+		}
+		return nil
+	}
 	columns, err := conn.Exec(tabletenv.LocalContext(), fmt.Sprintf("describe %s", sqlTableName), 10000, false)
 	if err != nil {
 		return err
@@ -98,6 +111,10 @@ func fetchColumns(ta *Table, conn *connpool.DBConn, sqlTableName string) error {
 }
 
 func fetchIndexes(ta *Table, conn *connpool.DBConn, sqlTableName string) error {
+	if *schemaEngineHack {
+		ta.Done()
+		return nil
+	}
 	indexes, err := conn.Exec(tabletenv.LocalContext(), fmt.Sprintf("show index from %s", sqlTableName), 10000, false)
 	if err != nil {
 		return err
