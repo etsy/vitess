@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"golang.org/x/net/context"
@@ -199,9 +200,14 @@ func (se *Engine) reload(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tableData, err := conn.Exec(ctx, mysql.BaseShowTables, maxTableCount, false)
-	if err != nil {
-		return err
+	var tableData *sqltypes.Result
+	if *schemaEngineHack {
+		tableData = &sqltypes.Result{}
+	} else {
+		tableData, err = conn.Exec(ctx, mysql.BaseShowTables, maxTableCount, false)
+		if err != nil {
+			return err
+		}
 	}
 
 	rec := concurrency.AllErrorRecorder{}

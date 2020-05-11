@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"flag"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,6 +26,10 @@ import (
 	"vitess.io/vitess/go/vt/sqlparser"
 	"vitess.io/vitess/go/vt/vttablet/tabletserver/connpool"
 	"vitess.io/vitess/go/vt/vttablet/tabletserver/tabletenv"
+)
+
+var (
+	schemaEngineHack = flag.Bool("schema_engine_hack", false, "avoid looking up schema info; probably breaks vindexes")
 )
 
 // LoadTable creates a Table from the schema info in the database.
