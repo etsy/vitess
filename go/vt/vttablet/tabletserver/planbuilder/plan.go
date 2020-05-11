@@ -191,13 +191,8 @@ func Build(statement sqlparser.Statement, tables map[string]*schema.Table) (*Pla
 }
 
 // BuildStreaming builds a streaming plan based on the schema.
-func BuildStreaming(sql string, tables map[string]*schema.Table) (*Plan, error) {
-	statement, err := sqlparser.Parse(sql)
-	if err != nil {
-		return nil, err
-	}
-
-	err = checkForPoolingUnsafeConstructs(statement)
+func BuildStreaming(statement sqlparser.Statement, tables map[string]*schema.Table) (*Plan, error) {
+	err := checkForPoolingUnsafeConstructs(statement)
 	if err != nil {
 		return nil, err
 	}
