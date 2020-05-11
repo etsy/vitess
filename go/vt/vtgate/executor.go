@@ -351,6 +351,54 @@ func (e *Executor) handleSet(ctx context.Context, safeSession *SafeSession, sql 
 	return &sqltypes.Result{}, nil
 }
 
+// handleSetWorkload like handleSet above but handles only SET workload queries, all other sets are unsupported
+// needed for StreamExecute which does not support transactions
+func (e *Executor) handleSetWorkload(safeSession *SafeSession, sql string, logStats *LogStats) (*sqltypes.Result, error) {
+	stmt, err := sqlparser.Parse(sql)
+	if err != nil {
+		return nil, err
+	}
+	rewrittenAST, err := sqlparser.PrepareAST(stmt, nil, "vtg", false)
+	if err != nil {
+		return nil, err
+	}
+	set, ok := rewrittenAST.AST.(*sqlparser.Set)
+	if !ok {
+		return nil, vterrors.New(vtrpcpb.Code_INTERNAL, "unexpected statement type")
+	}
+
+	execStart := time.Now()
+	logStats.PlanTime = execStart.Sub(logStats.StartTime)
+	defer func() {
+		logStats.ExecuteTime = time.Since(execStart)
+	}()
+
+	for _, expr := range set.Exprs {
+		if expr.Name.Lowered() != "workload" {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported construct: %s", sql)
+		}
+
+		val, err := getValueFor(expr)
+		if err != nil {
+			return nil, err
+		}
+
+		workload, ok := val.(string)
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unexpected value type for workload: %T", val)
+		}
+		out, ok := querypb.ExecuteOptions_Workload_value[strings.ToUpper(workload)]
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "invalid workload: %s", workload)
+		}
+		if safeSession.Options == nil {
+			safeSession.Options = &querypb.ExecuteOptions{}
+		}
+		safeSession.Options.Workload = querypb.ExecuteOptions_Workload(out)
+	}
+	return &sqltypes.Result{}, nil
+}
+
 func getValueFor(expr *sqlparser.SetExpr) (interface{}, error) {
 	switch expr := expr.Expr.(type) {
 	case *sqlparser.SQLVal:
@@ -1051,7 +1099,14 @@ func (e *Executor) StreamExecute(ctx context.Context, method string, safeSession
 		// this is a stream statement for messaging
 		// TODO: support keyRange syntax
 		return e.handleMessageStream(ctx, sql, target, callback, vcursor, logStats)
-	case sqlparser.StmtSelect, sqlparser.StmtDDL, sqlparser.StmtSet, sqlparser.StmtInsert, sqlparser.StmtReplace, sqlparser.StmtUpdate, sqlparser.StmtDelete,
+	case sqlparser.StmtSet:
+		// handle SET workload queries in order to switch between oltp and olap modes
+		result, setErr := e.handleSetWorkload(safeSession, sql, logStats)
+		if setErr != nil {
+			return setErr
+		}
+		return callback(result)
+	case sqlparser.StmtSelect, sqlparser.StmtDDL, sqlparser.StmtInsert, sqlparser.StmtReplace, sqlparser.StmtUpdate, sqlparser.StmtDelete,
 		sqlparser.StmtUse, sqlparser.StmtOther, sqlparser.StmtComment:
 		// These may or may not all work, but getPlan() should either return a plan with instructions
 		// or an error, so it's safe to try.

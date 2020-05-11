@@ -293,6 +293,7 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 	// In this context, we don't care if we can't fully parse destination
 	destKeyspace, destTabletType, dest, _ := vtg.executor.ParseDestinationTarget(session.TargetString)
 	statsKey := []string{"StreamExecute", destKeyspace, topoproto.TabletTypeLString(destTabletType)}
+	safeSession := NewSafeSession(session)
 
 	defer vtg.timings.Record(statsKey, time.Now())
 
@@ -313,6 +314,7 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 			destKeyspace,
 			destTabletType,
 			dest,
+			safeSession,
 			session.Options,
 			func(reply *sqltypes.Result) error {
 				vtg.rowsReturned.Add(statsKey, int64(len(reply.Rows)))
@@ -322,7 +324,7 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 		err = vtg.executor.StreamExecute(
 			ctx,
 			"StreamExecute",
-			NewSafeSession(session),
+			safeSession,
 			sql,
 			bindVariables,
 			querypb.Target{

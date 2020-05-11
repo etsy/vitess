@@ -17,12 +17,16 @@ limitations under the License.
 package vtgate
 
 import (
+	"strings"
+	"time"
+
 	"golang.org/x/net/context"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	querypb "vitess.io/vitess/go/vt/proto/query"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
 	vtrpcpb "vitess.io/vitess/go/vt/proto/vtrpc"
+	"vitess.io/vitess/go/vt/sqlparser"
 	"vitess.io/vitess/go/vt/srvtopo"
 	"vitess.io/vitess/go/vt/vterrors"
 )
@@ -122,9 +126,28 @@ func (res *Resolver) StreamExecute(
 	keyspace string,
 	tabletType topodatapb.TabletType,
 	destination key.Destination,
+	safeSession *SafeSession,
 	options *querypb.ExecuteOptions,
 	callback func(*sqltypes.Result) error,
 ) error {
+
+	logStats := NewLogStats(ctx, "StreamExecute", sql, bindVars)
+	stmtType := sqlparser.Preview(sql)
+	logStats.StmtType = stmtType.String()
+	defer logStats.Send()
+
+	// handle SET workload queries in order to switch between oltp and olap modes
+	if stmtType == sqlparser.StmtSet {
+		result, setErr := res.handleSetWorkload(safeSession, sql, logStats)
+		if setErr != nil {
+			return setErr
+		}
+		if err := callback(result); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	rss, err := res.resolver.ResolveDestination(ctx, keyspace, tabletType, destination)
 	if err != nil {
 		return err
@@ -163,4 +186,52 @@ func (res *Resolver) MessageStream(ctx context.Context, keyspace string, shard s
 // GetGatewayCacheStatus returns a displayable version of the Gateway cache.
 func (res *Resolver) GetGatewayCacheStatus() TabletCacheStatusList {
 	return res.scatterConn.GetGatewayCacheStatus()
+}
+
+// handleSetWorkload like handleSet above but handles only SET workload queries, all other sets are unsupported
+// needed for StreamExecute which does not support transactions
+func (res *Resolver) handleSetWorkload(safeSession *SafeSession, sql string, logStats *LogStats) (*sqltypes.Result, error) {
+	stmt, err := sqlparser.Parse(sql)
+	if err != nil {
+		return nil, err
+	}
+	rewrittenAST, err := sqlparser.PrepareAST(stmt, nil, "vtg", false)
+	if err != nil {
+		return nil, err
+	}
+	set, ok := rewrittenAST.AST.(*sqlparser.Set)
+	if !ok {
+		return nil, vterrors.New(vtrpcpb.Code_INTERNAL, "unexpected statement type")
+	}
+
+	execStart := time.Now()
+	logStats.PlanTime = execStart.Sub(logStats.StartTime)
+	defer func() {
+		logStats.ExecuteTime = time.Since(execStart)
+	}()
+
+	for _, expr := range set.Exprs {
+		if expr.Name.Lowered() != "workload" {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unsupported construct: %s", sql)
+		}
+
+		val, err := getValueFor(expr)
+		if err != nil {
+			return nil, err
+		}
+
+		workload, ok := val.(string)
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unexpected value type for workload: %T", val)
+		}
+		out, ok := querypb.ExecuteOptions_Workload_value[strings.ToUpper(workload)]
+		if !ok {
+			return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "invalid workload: %s", workload)
+		}
+		if safeSession.Options == nil {
+			safeSession.Options = &querypb.ExecuteOptions{}
+		}
+		safeSession.Options.Workload = querypb.ExecuteOptions_Workload(out)
+	}
+	return &sqltypes.Result{}, nil
 }

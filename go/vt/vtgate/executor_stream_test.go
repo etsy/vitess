@@ -26,6 +26,7 @@ import (
 	"vitess.io/vitess/go/vt/discovery"
 	querypb "vitess.io/vitess/go/vt/proto/query"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
+	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 	_ "vitess.io/vitess/go/vt/vtgate/vindexes"
 	"vitess.io/vitess/go/vt/vttablet/sandboxconn"
 )
@@ -41,6 +42,54 @@ func TestStreamSQLUnsharded(t *testing.T) {
 	wantResult := sandboxconn.StreamRowResult
 	if !result.Equal(wantResult) {
 		t.Errorf("result: %+v, want %+v", result, wantResult)
+	}
+}
+
+func TestStreamSQLSet(t *testing.T) {
+	executor, _, _, _ := createExecutorEnv()
+	logChan := QueryLogger.Subscribe("Test")
+	defer QueryLogger.Unsubscribe(logChan)
+
+	testcases := []struct {
+		in  string
+		out *vtgatepb.Session
+		err string
+	}{{
+		in:  "set workload = 'unspecified'",
+		out: &vtgatepb.Session{Autocommit: true, Options: &querypb.ExecuteOptions{Workload: querypb.ExecuteOptions_UNSPECIFIED}},
+	}, {
+		in:  "set workload = 'oltp'",
+		out: &vtgatepb.Session{Autocommit: true, Options: &querypb.ExecuteOptions{Workload: querypb.ExecuteOptions_OLTP}},
+	}, {
+		in:  "set workload = 'olap'",
+		out: &vtgatepb.Session{Autocommit: true, Options: &querypb.ExecuteOptions{Workload: querypb.ExecuteOptions_OLAP}},
+	}, {
+		in:  "set workload = 'dba'",
+		out: &vtgatepb.Session{Autocommit: true, Options: &querypb.ExecuteOptions{Workload: querypb.ExecuteOptions_DBA}},
+	}, {
+		in:  "set workload = 'aa'",
+		err: "invalid workload: aa",
+	}, {
+		in:  "set workload = 1",
+		err: "unexpected value type for workload: int64",
+	}, {
+		in:  "set autocommit = 1",
+		err: "unsupported construct: set autocommit = 1",
+	}, {
+		in:  "set names utf8",
+		err: "unsupported construct: set names utf8",
+	}}
+	for _, tcase := range testcases {
+		_, err := executorStreamMessages(executor, tcase.in)
+		if err != nil {
+			if err.Error() != tcase.err {
+				t.Errorf("%s error: %v, want %s", tcase.in, err, tcase.err)
+			}
+			continue
+		}
+		if masterSession.Options.Workload != tcase.out.Options.Workload {
+			t.Errorf("%s: %v, want %s", tcase.in, masterSession, tcase.out)
+		}
 	}
 }
 
