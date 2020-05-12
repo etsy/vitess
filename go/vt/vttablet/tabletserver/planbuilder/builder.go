@@ -120,8 +120,7 @@ func analyzeInsert(ins *sqlparser.Insert, tables map[string]*schema.Table) (plan
 		FullQuery: GenerateFullQuery(ins),
 	}
 
-	tableName := sqlparser.GetTableName(ins.Table)
-	plan.Table = tables[tableName.String()]
+	plan.Table = tables["dual"]
 	return plan, nil
 }
 
@@ -136,13 +135,5 @@ func lookupTable(tableExprs sqlparser.TableExprs, tables map[string]*schema.Tabl
 	if len(tableExprs) > 1 {
 		return nil
 	}
-	aliased, ok := tableExprs[0].(*sqlparser.AliasedTableExpr)
-	if !ok {
-		return nil
-	}
-	tableName := sqlparser.GetTableName(aliased.Expr)
-	if tableName.IsEmpty() {
-		return nil
-	}
-	return tables[tableName.String()]
+	return tables["dual"]
 }

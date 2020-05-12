@@ -222,7 +222,7 @@ func BuildStreaming(statement sqlparser.Statement, tables map[string]*schema.Tab
 func BuildMessageStreaming(name string, tables map[string]*schema.Table) (*Plan, error) {
 	plan := &Plan{
 		PlanID: PlanMessageStream,
-		Table:  tables[name],
+		Table:  tables["dual"],
 	}
 	if plan.Table == nil {
 		return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "table %s not found in schema", name)
