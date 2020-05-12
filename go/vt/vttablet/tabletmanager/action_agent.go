@@ -651,7 +651,7 @@ func (agent *ActionAgent) Start(ctx context.Context, dbcfgs *dbconfigs.DBConfigs
 	// Update bind addr for mysql and query service in the tablet node.
 	f := func(tablet *topodatapb.Tablet) error {
 		tablet.Hostname = hostname
-		tablet.MysqlHostname = mysqlHost
+		tablet.MysqlHostname = hostname
 		if tablet.PortMap == nil {
 			tablet.PortMap = make(map[string]int32)
 		}
