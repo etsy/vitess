@@ -1166,6 +1166,10 @@ func (c *Conn) execQuery(query string, handler Handler, more bool) error {
 	if !fieldSent {
 		// This is just a failsafe. Should never happen.
 		if err == nil || err == io.EOF {
+			if sqlparser.Preview(query) == sqlparser.StmtUse {
+				// USE stmt did not return an error, so send an OK packet
+				return c.writeOKPacket(0, 0, c.StatusFlags, 0)
+			}
 			err = NewSQLErrorFromError(errors.New("unexpected: query ended without no results and no error"))
 		}
 		if werr := c.writeErrorPacketFromError(err); werr != nil {

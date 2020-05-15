@@ -294,6 +294,8 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 	destKeyspace, destTabletType, dest, _ := vtg.executor.ParseDestinationTarget(session.TargetString)
 	statsKey := []string{"StreamExecute", destKeyspace, topoproto.TabletTypeLString(destTabletType)}
 	safeSession := NewSafeSession(session)
+	stmtType := sqlparser.Preview(sql)
+	destShard, ok := dest.(key.DestinationShard)
 
 	defer vtg.timings.Record(statsKey, time.Now())
 
@@ -305,22 +307,21 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 
 	// TODO: This could be simplified to have a StreamExecute that takes
 	// a destTarget without explicit destination.
-	switch dest.(type) {
-	case key.DestinationShard:
+	if ok && stmtType != sqlparser.StmtUse {
 		err = vtg.resolver.StreamExecute(
 			ctx,
 			sql,
 			bindVariables,
 			destKeyspace,
 			destTabletType,
-			dest,
+			destShard,
 			safeSession,
 			session.Options,
 			func(reply *sqltypes.Result) error {
 				vtg.rowsReturned.Add(statsKey, int64(len(reply.Rows)))
 				return callback(reply)
 			})
-	default:
+	} else {
 		err = vtg.executor.StreamExecute(
 			ctx,
 			"StreamExecute",

@@ -69,7 +69,11 @@ func (updTarget UpdateTarget) Execute(vcursor VCursor, bindVars map[string]*quer
 
 // StreamExecute implements the Primitive interface
 func (updTarget UpdateTarget) StreamExecute(vcursor VCursor, bindVars map[string]*query.BindVariable, wantfields bool, callback func(*sqltypes.Result) error) error {
-	return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "use cannot be used for streaming")
+	res, err := updTarget.Execute(vcursor, bindVars, wantfields)
+	if err != nil {
+		return err
+	}
+	return callback(res)
 }
 
 // GetFields implements the Primitive interface
