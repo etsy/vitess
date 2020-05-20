@@ -1132,6 +1132,11 @@ func (e *Executor) StreamExecute(ctx context.Context, method string, safeSession
 		return err
 	}
 
+	err = e.addNeededBindVars(plan.BindVarNeeds, bindVars, safeSession)
+	if err != nil {
+		return err
+	}
+
 	execStart := time.Now()
 	logStats.PlanTime = execStart.Sub(logStats.StartTime)
 
