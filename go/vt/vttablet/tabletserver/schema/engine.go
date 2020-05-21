@@ -284,9 +284,15 @@ func (se *Engine) mysqlTime(ctx context.Context, conn *connpool.DBConn) (int64, 
 
 // populatePrimaryKeys populates the PKColumns for the specified tables.
 func (se *Engine) populatePrimaryKeys(ctx context.Context, conn *connpool.DBConn, tables map[string]*Table) error {
-	pkData, err := conn.Exec(ctx, mysql.BaseShowPrimary, maxTableCount, false)
-	if err != nil {
-		return vterrors.Errorf(vtrpcpb.Code_UNKNOWN, "could not get table primary key info: %v", err)
+	var err error
+	var pkData *sqltypes.Result
+	if *schemaEngineHack {
+		pkData = &sqltypes.Result{}
+	} else {
+		pkData, err = conn.Exec(ctx, mysql.BaseShowPrimary, maxTableCount, false)
+		if err != nil {
+			return vterrors.Errorf(vtrpcpb.Code_UNKNOWN, "could not get table primary key info: %v", err)
+		}
 	}
 	for _, row := range pkData.Rows {
 		tableName := row[0].ToString()
