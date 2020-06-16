@@ -241,8 +241,8 @@ func (plan *Plan) TableName() sqlparser.TableIdent {
 }
 
 func (plan *Plan) setTable(tableName sqlparser.TableIdent, tables map[string]*schema.Table) (*schema.Table, error) {
-	if plan.Table = tables[tableName.String()]; plan.Table == nil {
-		return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "table %s not found in schema", tableName)
+	if plan.Table = tables["dual"]; plan.Table == nil {
+		return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "table %s not found in schema", "dual")
 	}
 	return plan.Table, nil
 }
