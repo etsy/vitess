@@ -138,6 +138,7 @@ type QueryEngine struct {
 	mu               sync.RWMutex
 	tables           map[string]*schema.Table
 	plans            cache.Cache
+	streamPlans      cache.Cache
 	queryRuleSources *rules.Map
 
 	// Pools
@@ -193,6 +194,7 @@ func NewQueryEngine(env tabletenv.Env, se *schema.Engine) *QueryEngine {
 		se:               se,
 		tables:           make(map[string]*schema.Table),
 		plans:            cache.NewDefaultCacheImpl(cacheCfg),
+		streamPlans:      cache.NewDefaultCacheImpl(cacheCfg),
 		queryRuleSources: rules.NewMap(),
 	}
 
@@ -246,6 +248,7 @@ func NewQueryEngine(env tabletenv.Env, se *schema.Engine) *QueryEngine {
 	env.Exporter().NewGaugeFunc("QueryCacheSize", "Query engine query cache size", qe.plans.UsedCapacity)
 	env.Exporter().NewGaugeFunc("QueryCacheCapacity", "Query engine query cache capacity", qe.plans.MaxCapacity)
 	env.Exporter().NewCounterFunc("QueryCacheEvictions", "Query engine query cache evictions", qe.plans.Evictions)
+
 	qe.queryCounts = env.Exporter().NewCountersWithMultiLabels("QueryCounts", "query counts", []string{"Table", "Plan"})
 	qe.queryTimes = env.Exporter().NewCountersWithMultiLabels("QueryTimesNs", "query times in ns", []string{"Table", "Plan"})
 	qe.queryRowCounts = env.Exporter().NewCountersWithMultiLabels("QueryRowCounts", "(DEPRECATED - use QueryRowsAffected and QueryRowsReturned instead) query row counts", []string{"Table", "Plan"})
@@ -303,6 +306,7 @@ func (qe *QueryEngine) Close() {
 	// Close in reverse order of Open.
 	qe.se.UnregisterNotifier("qe")
 	qe.plans.Clear()
+	qe.streamPlans.Clear()
 	qe.tables = make(map[string]*schema.Table)
 	qe.streamConns.Close()
 	qe.conns.Close()
@@ -351,15 +355,29 @@ func (qe *QueryEngine) GetPlan(ctx context.Context, logStats *tabletenv.LogStats
 // GetStreamPlan is similar to GetPlan, but doesn't use the cache
 // and doesn't enforce a limit. It just returns the parsed query.
 func (qe *QueryEngine) GetStreamPlan(sql string) (*TabletPlan, error) {
+	if cacheResult, ok := qe.streamPlans.Get(sql); ok {
+		return cacheResult.(*TabletPlan), nil
+	}
+
 	qe.mu.RLock()
 	defer qe.mu.RUnlock()
-	splan, err := planbuilder.BuildStreaming(sql, qe.tables)
+	statement, err := sqlparser.Parse(sql)
+	if err != nil {
+		return nil, err
+	}
+	splan, err := planbuilder.BuildStreaming(statement, sql, qe.tables)
+
 	if err != nil {
 		return nil, err
 	}
 	plan := &TabletPlan{Plan: splan, Original: sql}
 	plan.Rules = qe.queryRuleSources.FilterByPlan(sql, plan.PlanID, plan.TableName().String())
 	plan.buildAuthorized()
+
+	if !sqlparser.SkipQueryPlanCacheDirective(statement) {
+		qe.streamPlans.Set(sql, plan)
+	}
+
 	return plan, nil
 }
 
@@ -409,6 +427,7 @@ func (qe *QueryEngine) GetConnSetting(ctx context.Context, settings []string) (*
 // ClearQueryPlanCache should be called if query plan cache is potentially obsolete
 func (qe *QueryEngine) ClearQueryPlanCache() {
 	qe.plans.Clear()
+	qe.streamPlans.Clear()
 }
 
 // IsMySQLReachable returns an error if it cannot connect to MySQL.
@@ -431,6 +450,7 @@ func (qe *QueryEngine) schemaChanged(tables map[string]*schema.Table, created, a
 	qe.tables = tables
 	if len(altered) != 0 || len(dropped) != 0 {
 		qe.plans.Clear()
+		qe.streamPlans.Clear()
 	}
 }
 
@@ -465,6 +485,7 @@ func (qe *QueryEngine) SetQueryPlanCacheCap(size int) {
 		size = 1
 	}
 	qe.plans.SetCapacity(int64(size))
+	qe.streamPlans.SetCapacity(int64(size))
 }
 
 // QueryPlanCacheCap returns the capacity of the query cache.

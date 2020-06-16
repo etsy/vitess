@@ -186,7 +186,12 @@ func TestCustom(t *testing.T) {
 func TestStreamPlan(t *testing.T) {
 	testSchema := loadSchema("schema_test.json")
 	for tcase := range iterateExecFile("stream_cases.txt") {
-		plan, err := BuildStreaming(tcase.input, testSchema)
+		var plan *Plan
+		var err error
+		statement, err := sqlparser.Parse(tcase.input)
+		if err == nil {
+			plan, err = BuildStreaming(statement, tcase.input, testSchema)
+		}
 		var out string
 		if err != nil {
 			out = err.Error()
