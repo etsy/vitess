@@ -228,3 +228,20 @@ func TestSpanContextPassedInEvenAroundOtherComments(t *testing.T) {
 		newFromStringExpect(t, "123"))
 	assert.NoError(t, err)
 }
+
+func TestDefaultWorkloadEmpty(t *testing.T) {
+	vh := &vtgateHandler{}
+	sess := vh.session(&mysql.Conn{})
+	if sess.Options.Workload != querypb.ExecuteOptions_UNSPECIFIED {
+		t.Fatalf("Expected default workload UNSPECIFIED")
+	}
+}
+
+func TestDefaultWorkloadOLAP(t *testing.T) {
+	vh := &vtgateHandler{}
+	mysqlDefaultWorkload = int32(querypb.ExecuteOptions_OLAP)
+	sess := vh.session(&mysql.Conn{})
+	if sess.Options.Workload != querypb.ExecuteOptions_OLAP {
+		t.Fatalf("Expected default workload OLAP")
+	}
+}
