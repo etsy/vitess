@@ -129,9 +129,14 @@ func (se *Engine) Open() error {
 		return err
 	}
 
-	tableData, err := conn.Exec(ctx, mysql.BaseShowTables, maxTableCount, false)
-	if err != nil {
-		return vterrors.Errorf(vtrpcpb.Code_UNKNOWN, "could not get table list: %v", err)
+	var tableData *sqltypes.Result
+	if *schemaEngineHack {
+		tableData = &sqltypes.Result{}
+	} else {
+		tableData, err = conn.Exec(ctx, mysql.BaseShowTables, maxTableCount, false)
+		if err != nil {
+			return vterrors.Errorf(vtrpcpb.Code_UNKNOWN, "could not get table list: %v", err)
+		}
 	}
 
 	tables := make(map[string]*Table, len(tableData.Rows)+1)
@@ -247,7 +252,12 @@ func (se *Engine) Reload(ctx context.Context) error {
 		if err != nil {
 			return 0, nil, err
 		}
-		tableData, err := conn.Exec(ctx, mysql.BaseShowTables, maxTableCount, false)
+		var tableData *sqltypes.Result
+		if *schemaEngineHack {
+			tableData = &sqltypes.Result{}
+		} else {
+			tableData, err = conn.Exec(ctx, mysql.BaseShowTables, maxTableCount, false)
+		}
 		if err != nil {
 			return 0, nil, err
 		}
@@ -333,7 +343,12 @@ func (se *Engine) tableWasCreatedOrAltered(ctx context.Context, tableName string
 		return false, err
 	}
 	defer conn.Recycle()
-	tableData, err := conn.Exec(ctx, mysql.BaseShowTablesForTable(tableName), 1, false)
+	var tableData *sqltypes.Result
+	if *schemaEngineHack {
+		tableData = &sqltypes.Result{}
+	} else {
+		tableData, err = conn.Exec(ctx, mysql.BaseShowTablesForTable(tableName), 1, false)
+	}
 	if err != nil {
 		tabletenv.InternalErrors.Add("Schema", 1)
 		return false, vterrors.Errorf(vtrpcpb.Code_UNKNOWN, "tableWasCreatedOrAltered: information_schema query failed for table %s: %v", tableName, err)
