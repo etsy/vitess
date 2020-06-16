@@ -336,6 +336,7 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 	// In this context, we don't care if we can't fully parse destination
 	destKeyspace, destTabletType, dest, _ := vtg.executor.ParseDestinationTarget(session.TargetString)
 	statsKey := []string{"StreamExecute", destKeyspace, topoproto.TabletTypeLString(destTabletType)}
+	safeSession := NewSafeSession(session)
 
 	defer vtg.timings.Record(statsKey, time.Now())
 
@@ -356,6 +357,7 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 			destKeyspace,
 			destTabletType,
 			dest,
+			safeSession,
 			session.Options,
 			func(reply *sqltypes.Result) error {
 				vtg.rowsReturned.Add(statsKey, int64(len(reply.Rows)))
@@ -365,7 +367,7 @@ func (vtg *VTGate) StreamExecute(ctx context.Context, session *vtgatepb.Session,
 		err = vtg.executor.StreamExecute(
 			ctx,
 			"StreamExecute",
-			NewSafeSession(session),
+			safeSession,
 			sql,
 			bindVariables,
 			querypb.Target{
@@ -670,6 +672,11 @@ func (vtg *VTGate) StreamExecuteKeyspaceIds(ctx context.Context, sql string, bin
 	statsKey := []string{"StreamExecuteKeyspaceIds", keyspace, ltt}
 	defer vtg.timings.Record(statsKey, startTime)
 
+	session := &vtgatepb.Session{
+		Options:    options,
+		Autocommit: true,
+	}
+
 	var err error
 
 	if bvErr := sqltypes.ValidateBindVariables(bindVariables); bvErr != nil {
@@ -684,6 +691,7 @@ func (vtg *VTGate) StreamExecuteKeyspaceIds(ctx context.Context, sql string, bin
 		keyspace,
 		tabletType,
 		key.DestinationKeyspaceIDs(keyspaceIds),
+		NewSafeSession(session),
 		options,
 		func(reply *sqltypes.Result) error {
 			vtg.rowsReturned.Add(statsKey, int64(len(reply.Rows)))
@@ -719,6 +727,11 @@ func (vtg *VTGate) StreamExecuteKeyRanges(ctx context.Context, sql string, bindV
 	statsKey := []string{"StreamExecuteKeyRanges", keyspace, ltt}
 	defer vtg.timings.Record(statsKey, startTime)
 
+	session := &vtgatepb.Session{
+		Options:    options,
+		Autocommit: true,
+	}
+
 	var err error
 
 	if bvErr := sqltypes.ValidateBindVariables(bindVariables); bvErr != nil {
@@ -733,6 +746,7 @@ func (vtg *VTGate) StreamExecuteKeyRanges(ctx context.Context, sql string, bindV
 		keyspace,
 		tabletType,
 		key.DestinationKeyRanges(keyRanges),
+		NewSafeSession(session),
 		options,
 		func(reply *sqltypes.Result) error {
 			vtg.rowsReturned.Add(statsKey, int64(len(reply.Rows)))
@@ -763,6 +777,11 @@ func (vtg *VTGate) StreamExecuteShards(ctx context.Context, sql string, bindVari
 	statsKey := []string{"StreamExecuteShards", keyspace, ltt}
 	defer vtg.timings.Record(statsKey, startTime)
 
+	session := &vtgatepb.Session{
+		Options:    options,
+		Autocommit: true,
+	}
+
 	var err error
 
 	if bvErr := sqltypes.ValidateBindVariables(bindVariables); bvErr != nil {
@@ -777,6 +796,7 @@ func (vtg *VTGate) StreamExecuteShards(ctx context.Context, sql string, bindVari
 		keyspace,
 		tabletType,
 		key.DestinationShards(shards),
+		NewSafeSession(session),
 		options,
 		func(reply *sqltypes.Result) error {
 			vtg.rowsReturned.Add(statsKey, int64(len(reply.Rows)))
