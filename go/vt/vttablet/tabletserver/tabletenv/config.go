@@ -76,6 +76,7 @@ func init() {
 	flag.BoolVar(&Config.EnableTableACLDryRun, "queryserver-config-enable-table-acl-dry-run", DefaultQsConfig.EnableTableACLDryRun, "If this flag is enabled, tabletserver will emit monitoring metrics and let the request pass regardless of table acl check results")
 	flag.StringVar(&Config.TableACLExemptACL, "queryserver-config-acl-exempt-acl", DefaultQsConfig.TableACLExemptACL, "an acl that exempt from table acl checking (this acl is free to access any vitess tables).")
 	flag.BoolVar(&Config.TerseErrors, "queryserver-config-terse-errors", DefaultQsConfig.TerseErrors, "prevent bind vars from escaping in returned errors")
+	flag.IntVar(&Config.TruncateErrorLen, "queryserver-config-truncate-error-len", DefaultQsConfig.TruncateErrorLen, "truncate errors if they are above this value (0 means do not truncate)")
 	flag.StringVar(&Config.PoolNamePrefix, "pool-name-prefix", DefaultQsConfig.PoolNamePrefix, "pool name prefix, vttablet has several pools and each of them has a name. This config specifies the prefix of these pool names")
 	flag.BoolVar(&Config.WatchReplication, "watch_replication_stream", false, "When enabled, vttablet will stream the MySQL replication stream from the local server, and use it to support the include_event_token ExecuteOptions.")
 	flag.BoolVar(&Config.EnableAutoCommit, "enable-autocommit", DefaultQsConfig.EnableAutoCommit, "if the flag is on, a DML outsides a transaction will be auto committed. This flag is deprecated and is unsafe. Instead, use the VTGate provided autocommit feature.")
@@ -131,8 +132,8 @@ type TabletConfig struct {
 	PoolPrefillParallelism        int
 	StreamPoolSize                int
 	StreamPoolPrefillParallelism  int
-	MessagePoolSize               int
 	MessagePoolPrefillParallelism int
+	MessagePoolSize               int
 	TransactionCap                int
 	MessagePostponeCap            int
 	FoundRowsPoolSize             int
@@ -155,7 +156,7 @@ type TabletConfig struct {
 	TxPoolWaiterCap               int
 	StrictTableACL                bool
 	TerseErrors                   bool
-	EnableAutoCommit              bool
+	TruncateErrorLen              int
 	EnableTableACLDryRun          bool
 	PoolNamePrefix                string
 	TableACLExemptACL             string
@@ -163,6 +164,7 @@ type TabletConfig struct {
 	TwoPCEnable                   bool
 	TwoPCCoordinatorAddress       string
 	TwoPCAbandonAge               float64
+	EnableAutoCommit              bool
 
 	EnableTxThrottler           bool
 	TxThrottlerConfig           string
@@ -203,46 +205,44 @@ type TransactionLimitConfig struct {
 // great (the overhead makes the final packets on the wire about twice
 // bigger than this).
 var DefaultQsConfig = TabletConfig{
-	PoolSize:                      16,
-	PoolPrefillParallelism:        0,
-	StreamPoolSize:                200,
-	StreamPoolPrefillParallelism:  0,
-	MessagePoolSize:               5,
-	MessagePoolPrefillParallelism: 0,
-	TransactionCap:                20,
-	MessagePostponeCap:            4,
-	FoundRowsPoolSize:             20,
-	TxPoolPrefillParallelism:      0,
-	TransactionTimeout:            30,
-	TxShutDownGracePeriod:         0,
-	MaxResultSize:                 10000,
-	WarnResultSize:                0,
-	MaxDMLRows:                    500,
-	PassthroughDMLs:               false,
-	AllowUnsafeDMLs:               false,
-	QueryPlanCacheSize:            5000,
-	SchemaReloadTime:              30 * 60,
-	QueryTimeout:                  30,
-	QueryPoolTimeout:              0,
-	TxPoolTimeout:                 1,
-	IdleTimeout:                   30 * 60,
-	QueryPoolWaiterCap:            50000,
-	TxPoolWaiterCap:               50000,
-	StreamBufferSize:              32 * 1024,
-	StrictTableACL:                false,
-	TerseErrors:                   false,
-	EnableAutoCommit:              false,
-	EnableTableACLDryRun:          false,
-	PoolNamePrefix:                "",
-	TableACLExemptACL:             "",
-	WatchReplication:              false,
-	TwoPCEnable:                   false,
-	TwoPCCoordinatorAddress:       "",
-	TwoPCAbandonAge:               0,
-
-	EnableTxThrottler:           false,
-	TxThrottlerConfig:           defaultTxThrottlerConfig(),
-	TxThrottlerHealthCheckCells: []string{},
+	PoolSize:                     16,
+	PoolPrefillParallelism:       0,
+	StreamPoolSize:               200,
+	StreamPoolPrefillParallelism: 0,
+	MessagePoolSize:              5,
+	TransactionCap:               20,
+	MessagePostponeCap:           4,
+	FoundRowsPoolSize:            20,
+	TxPoolPrefillParallelism:     0,
+	TransactionTimeout:           30,
+	TxShutDownGracePeriod:        0,
+	MaxResultSize:                10000,
+	WarnResultSize:               0,
+	MaxDMLRows:                   500,
+	PassthroughDMLs:              false,
+	AllowUnsafeDMLs:              false,
+	QueryPlanCacheSize:           5000,
+	SchemaReloadTime:             30 * 60,
+	QueryTimeout:                 30,
+	QueryPoolTimeout:             0,
+	TxPoolTimeout:                1,
+	IdleTimeout:                  30 * 60,
+	QueryPoolWaiterCap:           50000,
+	TxPoolWaiterCap:              50000,
+	StreamBufferSize:             32 * 1024,
+	StrictTableACL:               false,
+	TerseErrors:                  false,
+	TruncateErrorLen:             0,
+	EnableTableACLDryRun:         false,
+	PoolNamePrefix:               "",
+	TableACLExemptACL:            "",
+	WatchReplication:             false,
+	TwoPCEnable:                  false,
+	TwoPCCoordinatorAddress:      "",
+	TwoPCAbandonAge:              0,
+	EnableTxThrottler:            false,
+	TxThrottlerConfig:            defaultTxThrottlerConfig(),
+	TxThrottlerHealthCheckCells:  []string{},
 
 	EnableHotRowProtection:       false,
 	EnableHotRowProtectionDryRun: false,

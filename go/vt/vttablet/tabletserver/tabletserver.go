@@ -138,6 +138,7 @@ func stateInfo(state int64) string {
 type TabletServer struct {
 	QueryTimeout           sync2.AtomicDuration
 	TerseErrors            bool
+	TruncateErrorLen       int
 	enableHotRowProtection bool
 
 	// mu is used to access state. The lock should only be held
@@ -265,6 +266,7 @@ func NewTabletServer(config tabletenv.TabletConfig, topoServer *topo.Server, ali
 	tsv := &TabletServer{
 		QueryTimeout:           sync2.NewAtomicDuration(time.Duration(config.QueryTimeout * 1e9)),
 		TerseErrors:            config.TerseErrors,
+		TruncateErrorLen:       config.TruncateErrorLen,
 		enableHotRowProtection: config.EnableHotRowProtection || config.EnableHotRowProtectionDryRun,
 		checkMySQLThrottler:    sync2.NewSemaphore(1, 0),
 		streamHealthMap:        make(map[int]chan<- *querypb.StreamHealthResponse),
@@ -1645,6 +1647,11 @@ func (tsv *TabletServer) convertAndLogError(ctx context.Context, sql string, bin
 
 	if logStats != nil {
 		logStats.Error = err
+	}
+
+	errStr := err.Error()
+	if tsv.TruncateErrorLen > 0 && len(errStr) > tsv.TruncateErrorLen {
+		err = vterrors.New(vterrors.Code(err), errStr[:tsv.TruncateErrorLen])
 	}
 
 	return err
