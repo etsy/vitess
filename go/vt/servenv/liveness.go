@@ -18,6 +18,7 @@ package servenv
 
 import (
 	"net/http"
+	"os"
 )
 
 // This file registers a handler that immediately responds with HTTP 200 OK.
@@ -30,6 +31,9 @@ import (
 
 func init() {
 	HTTPHandleFunc("/debug/liveness", func(rw http.ResponseWriter, r *http.Request) {
-		// Do nothing. Return success immediately.
+		if _, err := os.Stat("/etc/etsy/depool"); !os.IsNotExist(err) {
+			rw.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 	})
 }
