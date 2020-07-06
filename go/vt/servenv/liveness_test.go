@@ -20,13 +20,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLivenessHandler(t *testing.T) {
 	server := httptest.NewServer(nil)
 	defer server.Close()
-
 	resp, err := http.Get(server.URL + "/debug/liveness")
 	if err != nil {
 		t.Fatalf("http.Get: %v", err)
@@ -39,4 +41,43 @@ func TestLivenessHandler(t *testing.T) {
 		t.Fatalf("io.ReadAll: %v", err)
 	}
 	t.Logf("body: %q", body)
+}
+
+func TestLivenessHandlerDepool(t *testing.T) {
+	assert := assert.New(t)
+	server := httptest.NewServer(nil)
+	defer server.Close()
+
+	var resp, err = http.Get(server.URL + "/debug/liveness")
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	assert.Equal(
+		http.StatusOK,
+		resp.StatusCode,
+		"should return 200 response code when depool file is not present",
+	)
+
+	// requires
+	// ```
+	// sudo mkdir -p /etc/etsy
+	// sudo chmod 777 /etc/etsy
+	// ```
+	var path = "/etc/etsy/depool"
+	_, err = os.Create(path)
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(path)
+
+	resp, err = http.Get(server.URL + "/debug/liveness")
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	assert.Equal(
+		http.StatusServiceUnavailable,
+		resp.StatusCode,
+		"should return 503 response code when depool file is present",
+	)
+	defer resp.Body.Close()
 }
