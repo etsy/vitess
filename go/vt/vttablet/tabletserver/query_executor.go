@@ -806,7 +806,7 @@ func (qre *QueryExecutor) getStreamConn() (*connpool.DBConn, error) {
 	defer span.Finish()
 
 	start := time.Now()
-	conn, err := qre.tsv.qe.streamConns.Get(ctx)
+	conn, err := qre.tsv.qe.getStreamConn(ctx)
 	switch err {
 	case nil:
 		qre.logStats.WaitingForConnection += time.Since(start)

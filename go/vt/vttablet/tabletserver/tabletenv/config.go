@@ -47,6 +47,7 @@ func init() {
 	flag.IntVar(&Config.PoolSize, "queryserver-config-pool-size", DefaultQsConfig.PoolSize, "query server read pool size, connection pool is used by regular queries (non streaming, not in a transaction)")
 	flag.IntVar(&Config.PoolPrefillParallelism, "queryserver-config-pool-prefill-parallelism", DefaultQsConfig.PoolPrefillParallelism, "query server read pool prefill parallelism, a non-zero value will prefill the pool using the specified parallism.")
 	flag.IntVar(&Config.StreamPoolSize, "queryserver-config-stream-pool-size", DefaultQsConfig.StreamPoolSize, "query server stream connection pool size, stream pool is used by stream queries: queries that return results to client in a streaming fashion")
+	flag.Float64Var(&Config.StreamPoolTimeout, "queryserver-config-stream-pool-timeout", DefaultQsConfig.StreamPoolTimeout, "query server stream pool timeout (in seconds), it is how long vttablet waits for a connection from the stream pool. If set to 0 (default) then there is no timeout.")
 	flag.IntVar(&Config.StreamPoolPrefillParallelism, "queryserver-config-stream-pool-prefill-parallelism", DefaultQsConfig.StreamPoolPrefillParallelism, "query server stream pool prefill parallelism, a non-zero value will prefill the pool using the specified parallelism")
 	flag.IntVar(&Config.MessagePoolSize, "queryserver-config-message-conn-pool-size", DefaultQsConfig.MessagePoolSize, "query server message connection pool size, message pool is used by message managers: recommended value is one per message table")
 	flag.IntVar(&Config.MessagePoolPrefillParallelism, "queryserver-config-message-conn-pool-prefill-parallelism", DefaultQsConfig.MessagePoolPrefillParallelism, "query server message pool prefill parallelism, a non-zero value will prefill the pool using the specified parallelism")
@@ -131,6 +132,7 @@ type TabletConfig struct {
 	PoolSize                      int
 	PoolPrefillParallelism        int
 	StreamPoolSize                int
+	StreamPoolTimeout             float64
 	StreamPoolPrefillParallelism  int
 	MessagePoolPrefillParallelism int
 	MessagePoolSize               int
@@ -208,6 +210,7 @@ var DefaultQsConfig = TabletConfig{
 	PoolSize:                     16,
 	PoolPrefillParallelism:       0,
 	StreamPoolSize:               200,
+	StreamPoolTimeout:            0,
 	StreamPoolPrefillParallelism: 0,
 	MessagePoolSize:              5,
 	TransactionCap:               20,
