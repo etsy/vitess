@@ -144,18 +144,18 @@ type QueryEngine struct {
 	streamQList  *QueryList
 
 	// Vars
-	connTimeout        sync2.AtomicDuration
-	streamConnPoolTimeout  sync2.AtomicDuration
-	queryPoolWaiters   sync2.AtomicInt64
-	queryPoolWaiterCap sync2.AtomicInt64
-	binlogFormat       connpool.BinlogFormat
-	autoCommit         sync2.AtomicBool
-	maxResultSize      sync2.AtomicInt64
-	warnResultSize     sync2.AtomicInt64
-	maxDMLRows         sync2.AtomicInt64
-	passthroughDMLs    sync2.AtomicBool
-	allowUnsafeDMLs    bool
-	streamBufferSize   sync2.AtomicInt64
+	connTimeout           sync2.AtomicDuration
+	streamConnPoolTimeout sync2.AtomicDuration
+	queryPoolWaiters      sync2.AtomicInt64
+	queryPoolWaiterCap    sync2.AtomicInt64
+	binlogFormat          connpool.BinlogFormat
+	autoCommit            sync2.AtomicBool
+	maxResultSize         sync2.AtomicInt64
+	warnResultSize        sync2.AtomicInt64
+	maxDMLRows            sync2.AtomicInt64
+	passthroughDMLs       sync2.AtomicBool
+	allowUnsafeDMLs       bool
+	streamBufferSize      sync2.AtomicInt64
 	// tableaclExemptCount count the number of accesses allowed
 	// based on membership in the superuser ACL
 	tableaclExemptCount  sync2.AtomicInt64
