@@ -420,7 +420,7 @@ func (qe *QueryEngine) getStreamConn(ctx context.Context) (*connpool.DBConn, err
 		defer cancel()
 		conn, err := qe.streamConns.Get(ctxTimeout)
 		if err != nil {
-			return nil, vterrors.Errorf(vtrpcpb.Code_RESOURCE_EXHAUSTED, "stream pool wait time exceeded")
+			return nil, vterrors.Errorf(vtrpcpb.Code_RESOURCE_EXHAUSTED, "stream pool wait time exceeded: %s", err)
 		}
 		return conn, err
 	}
