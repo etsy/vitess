@@ -144,17 +144,18 @@ type QueryEngine struct {
 	streamQList  *QueryList
 
 	// Vars
-	connTimeout        sync2.AtomicDuration
-	queryPoolWaiters   sync2.AtomicInt64
-	queryPoolWaiterCap sync2.AtomicInt64
-	binlogFormat       connpool.BinlogFormat
-	autoCommit         sync2.AtomicBool
-	maxResultSize      sync2.AtomicInt64
-	warnResultSize     sync2.AtomicInt64
-	maxDMLRows         sync2.AtomicInt64
-	passthroughDMLs    sync2.AtomicBool
-	allowUnsafeDMLs    bool
-	streamBufferSize   sync2.AtomicInt64
+	connTimeout           sync2.AtomicDuration
+	streamConnPoolTimeout sync2.AtomicDuration
+	queryPoolWaiters      sync2.AtomicInt64
+	queryPoolWaiterCap    sync2.AtomicInt64
+	binlogFormat          connpool.BinlogFormat
+	autoCommit            sync2.AtomicBool
+	maxResultSize         sync2.AtomicInt64
+	warnResultSize        sync2.AtomicInt64
+	maxDMLRows            sync2.AtomicInt64
+	passthroughDMLs       sync2.AtomicBool
+	allowUnsafeDMLs       bool
+	streamBufferSize      sync2.AtomicInt64
 	// tableaclExemptCount count the number of accesses allowed
 	// based on membership in the superuser ACL
 	tableaclExemptCount  sync2.AtomicInt64
@@ -205,6 +206,9 @@ func NewQueryEngine(checker connpool.MySQLChecker, se *schema.Engine, config tab
 		time.Duration(config.IdleTimeout*1e9),
 		checker,
 	)
+
+	qe.streamConnPoolTimeout.Set(time.Duration(config.StreamPoolTimeout * 1e9))
+
 	qe.enableConsolidator = config.EnableConsolidator
 	qe.consolidator = sync2.NewConsolidator()
 	qe.txSerializer = txserializer.New(config.EnableHotRowProtectionDryRun,
@@ -404,6 +408,23 @@ func (qe *QueryEngine) getQueryConn(ctx context.Context) (*connpool.DBConn, erro
 		return conn, err
 	}
 	return qe.conns.Get(ctx)
+}
+
+// getStreamQueryConn returns a connection from the stream pool using
+// either the stream pool timeout if configured, or waiting
+// indefinitely for a connection to become available
+func (qe *QueryEngine) getStreamConn(ctx context.Context) (*connpool.DBConn, error) {
+	timeout := qe.streamConnPoolTimeout.Get()
+	if timeout != 0 {
+		ctxTimeout, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		conn, err := qe.streamConns.Get(ctxTimeout)
+		if err != nil {
+			return nil, vterrors.Errorf(vtrpcpb.Code_RESOURCE_EXHAUSTED, "stream pool wait time exceeded: %s", err)
+		}
+		return conn, err
+	}
+	return qe.streamConns.Get(ctx)
 }
 
 // GetStreamPlan returns the TabletPlan that for the query. Plans are cached in
