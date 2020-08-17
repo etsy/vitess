@@ -594,6 +594,29 @@ func (wr *Wrangler) plannedReparentShardLocked(ctx context.Context, ev *events.R
 			return fmt.Errorf("old master tablet %v DemoteMaster failed: %v", topoproto.TabletAliasString(shardInfo.MasterAlias), err)
 		}
 
+		waitCtx, waitCancel := context.WithTimeout(ctx, waitReplicasTimeout)
+		defer waitCancel()
+
+		waitErr := wr.tmc.WaitForPosition(waitCtx, masterElectTabletInfo.Tablet, rp)
+		if waitErr != nil || ctx.Err() == context.DeadlineExceeded {
+			// If the new master fails to catch up within the timeout,
+			// we try to roll back to the original master before aborting.
+			// It is possible that we have used up the original context, or that
+			// not enough time is left on it before it times out.
+			// But at this point we really need to be able to Undo so as not to
+			// leave the cluster in a bad state.
+			// So we create a fresh context based on context.Background().
+			undoCtx, undoCancel := context.WithTimeout(context.Background(), *topo.RemoteOperationTimeout)
+			defer undoCancel()
+			if undoErr := wr.tmc.UndoDemoteMaster(undoCtx, oldMasterTabletInfo.Tablet); undoErr != nil {
+				log.Warningf("Encountered error while trying to undo DemoteMaster: %v", undoErr)
+			}
+			if waitErr != nil {
+				return vterrors.Wrapf(err, "master-elect tablet %v failed to catch up with replication", masterElectTabletAliasStr)
+			}
+			return vterrors.New(vtrpcpb.Code_DEADLINE_EXCEEDED, "PlannedReparent timed out, please try again.")
+		}
+
 		// Wait on the master-elect tablet until it reaches that position,
 		// then promote it.
 		wr.logger.Infof("promote replica %v", masterElectTabletAliasStr)
