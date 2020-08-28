@@ -462,7 +462,6 @@ const (
 	actionFullStart
 	actionServeNewType
 	actionGracefulStop
-	actionImmediateStop
 )
 
 // SetServingType changes the serving type of the tabletserver. It starts or
