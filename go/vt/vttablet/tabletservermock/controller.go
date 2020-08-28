@@ -138,6 +138,11 @@ func (tqsc *Controller) SetServingType(tabletType topodatapb.TabletType, serving
 	return stateChanged, tqsc.SetServingTypeError
 }
 
+func (tqsc *Controller) SetServingTypeForPRS(tabletType topodatapb.TabletType) (error) {
+	_, err := tqsc.SetServingType(tabletType, false, nil)
+	return err
+}
+
 // IsServing is part of the tabletserver.Controller interface
 func (tqsc *Controller) IsServing() bool {
 	tqsc.mu.Lock()

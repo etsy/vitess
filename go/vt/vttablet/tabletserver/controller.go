@@ -45,6 +45,10 @@ type Controller interface {
 	// Returns true if the state of QueryService or the tablet type changed.
 	SetServingType(tabletType topodatapb.TabletType, serving bool, alsoAllow []topodatapb.TabletType) (bool, error)
 
+	// SetServingTypeForPRS sets the tablet state to shutting down and
+	// performs an immediate shutdown of all connections
+	SetServingTypeForPRS(tabletType topodatapb.TabletType) (error)
+
 	// EnterLameduck causes tabletserver to enter the lameduck state.
 	EnterLameduck()
 

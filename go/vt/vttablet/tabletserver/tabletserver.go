@@ -237,6 +237,9 @@ type TxPoolController interface {
 	// StopGently will change the state to NotServing but first wait for transactions to wrap up
 	StopGently()
 
+	// StopHard will change the state to NotServing AND NOT wait for transactions to wrap up
+	StopHard()
+
 	// Begin begins a transaction, and returns the associated transaction id and the
 	// statement(s) used to execute the begin (if any).
 	//
@@ -459,6 +462,7 @@ const (
 	actionFullStart
 	actionServeNewType
 	actionGracefulStop
+	actionImmediateStop
 )
 
 // SetServingType changes the serving type of the tabletserver. It starts or
@@ -493,6 +497,14 @@ func (tsv *TabletServer) SetServingType(tabletType topodatapb.TabletType, servin
 		return true, nil
 	}
 	panic("unreachable")
+}
+
+func (tsv *TabletServer) SetServingTypeForPRS(tabletType topodatapb.TabletType) (err error) {
+	defer tsv.ExitLameduck()
+
+	tsv.setState(StateShuttingDown)
+	tsv.immediateStop()
+	return nil
 }
 
 func (tsv *TabletServer) decideAction(tabletType topodatapb.TabletType, serving bool, alsoAllow []topodatapb.TabletType) (action int, err error) {
@@ -598,6 +610,12 @@ func (tsv *TabletServer) gracefulStop() {
 	tsv.transition(StateNotServing)
 }
 
+func (tsv *TabletServer) immediateStop() {
+	defer close(tsv.setTimeBomb())
+	tsv.immediateShutdown()
+	tsv.transition(StateNotServing)
+}
+
 // StopService shuts down the tabletserver to the uninitialized state.
 // It first transitions to StateShuttingDown, then waits for active
 // services to shut down. Then it shuts down QueryEngine. This function
@@ -636,6 +654,19 @@ func (tsv *TabletServer) waitForShutdown() {
 	tsv.messager.Close()
 	tsv.teCtrl.StopGently()
 	tsv.qe.streamQList.TerminateAll()
+	tsv.updateStreamList.Stop()
+	tsv.watcher.Close()
+	tsv.requests.Wait()
+	tsv.txThrottler.Close()
+}
+
+func (tsv *TabletServer) immediateShutdown() {
+	// Do not wait for active transactions, roll them all back immediately
+	// This is primarily for PlannedReparentShard operations, where you want
+	// the reparenting to happen ASAP
+	log.Warningf("Executing immediate shutdown!")
+	tsv.messager.Close()
+	tsv.teCtrl.StopHard()
 	tsv.updateStreamList.Stop()
 	tsv.watcher.Close()
 	tsv.requests.Wait()

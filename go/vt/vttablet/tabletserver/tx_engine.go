@@ -401,6 +401,14 @@ func (te *TxEngine) StopGently() {
 	te.state = NotServing
 }
 
+// StopHard will kill all transactions and not wait for anything
+func (te *TxEngine) StopHard() {
+	te.stateLock.Lock()
+	defer te.stateLock.Unlock()
+	te.close(true)
+	te.state = NotServing
+}
+
 // Close closes the TxEngine. If the immediate flag is on,
 // then all current transactions are immediately rolled back.
 // Otherwise, the function waits for all current transactions
@@ -424,9 +432,9 @@ func (te *TxEngine) close(immediate bool) {
 			close(rollbackDone)
 		}()
 		if immediate {
-			// Immediately rollback everything and return.
-			log.Info("Immediate shutdown: rolling back now.")
-			te.rollbackTransactions()
+			// Immediately close everything and return.
+			log.Info("Immediate shutdown: closing all connections now.")
+			te.closeAllConnections()
 			return
 		}
 		if te.shutdownGracePeriod <= 0 {
@@ -529,6 +537,11 @@ func (te *TxEngine) rollbackTransactions() {
 	// this function. In case of any such change, this will
 	// have to be revisited.
 	te.txPool.RollbackNonBusy(ctx)
+}
+
+func (te *TxEngine) closeAllConnections() {
+	ctx := tabletenv.LocalContext()
+	te.txPool.CloseAllConnections(ctx)
 }
 
 func (te *TxEngine) rollbackPrepared() {

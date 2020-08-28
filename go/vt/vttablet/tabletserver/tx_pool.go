@@ -182,6 +182,14 @@ func (axp *TxPool) RollbackNonBusy(ctx context.Context) {
 	}
 }
 
+func (axp *TxPool) CloseAllConnections(ctx context.Context) {
+	for _, v := range axp.activePool.GetAll() {
+		conn := v.(*TxConnection)
+		log.Warningf("Closing active connection")
+		conn.conclude(TxClose, "for fast shutdown")
+	}
+}
+
 func (axp *TxPool) transactionKiller() {
 	defer tabletenv.LogError()
 	for _, v := range axp.activePool.GetOutdated(time.Duration(axp.Timeout()), "for tx killer rollback") {
