@@ -373,7 +373,7 @@ func (agent *ActionAgent) demoteMaster(ctx context.Context, revertPartialFailure
 		// idempotent.
 		log.Infof("DemoteMaster disabling query service")
 		if err := agent.QueryServiceControl.SetServingTypeForPRS(tablet.Type); err != nil {
-			return "", vterrors.Wrap(err, "SetServingType(serving=false) failed")
+			return "", vterrors.Wrap(err, "SetServingTypeForPRS(serving=false) failed")
 		}
 		defer func() {
 			if finalErr != nil && revertPartialFailure && wasServing {

@@ -663,7 +663,7 @@ func (tsv *TabletServer) immediateShutdown() {
 	// Do not wait for active transactions, roll them all back immediately
 	// This is primarily for PlannedReparentShard operations, where you want
 	// the reparenting to happen ASAP
-	log.Warningf("Executing immediate shutdown!")
+	log.Infof("Executing immediate shutdown!")
 	tsv.messager.Close()
 	tsv.teCtrl.StopHard()
 	tsv.updateStreamList.Stop()
