@@ -92,6 +92,7 @@ type TabletServer struct {
 	stats                  *tabletenv.Stats
 	QueryTimeout           sync2.AtomicDuration
 	TerseErrors            bool
+	TruncateErrorLen       int
 	enableHotRowProtection bool
 	topoServer             *topo.Server
 
@@ -144,6 +145,7 @@ func NewTabletServer(name string, config *tabletenv.TabletConfig, topoServer *to
 		config:                 config,
 		QueryTimeout:           sync2.NewAtomicDuration(config.Oltp.QueryTimeoutSeconds.Get()),
 		TerseErrors:            config.TerseErrors,
+		TruncateErrorLen:       config.TruncateErrorLen,
 		enableHotRowProtection: config.HotRowProtection.Mode != tabletenv.Disable,
 		topoServer:             topoServer,
 		alias:                  alias,
@@ -1297,6 +1299,11 @@ func (tsv *TabletServer) convertAndLogError(ctx context.Context, sql string, bin
 
 	if logStats != nil {
 		logStats.Error = err
+	}
+
+	errStr := err.Error()
+	if tsv.TruncateErrorLen > 0 && len(errStr) > tsv.TruncateErrorLen {
+		err = vterrors.New(vterrors.Code(err), errStr[:tsv.TruncateErrorLen])
 	}
 
 	return err
