@@ -513,13 +513,23 @@ func (tm *TabletManager) checkMastership(ctx context.Context, si *topo.ShardInfo
 func (tm *TabletManager) checkMysql(ctx context.Context) error {
 	if appConfig, _ := tm.DBConfigs.AppWithDB().MysqlParams(); appConfig.Host != "" {
 		tm.tmState.UpdateTablet(func(tablet *topodatapb.Tablet) {
-			tablet.MysqlHostname = appConfig.Host
+			// use -tablet_hostname argument, if provided
+			if *tabletHostname != "" {
+				tablet.MysqlHostname = *tabletHostname
+			} else {
+				tablet.MysqlHostname = appConfig.Host
+			}
 			tablet.MysqlPort = int32(appConfig.Port)
 		})
 	} else {
 		// Assume unix socket was specified and try to get the port from mysqld
 		tm.tmState.UpdateTablet(func(tablet *topodatapb.Tablet) {
-			tablet.MysqlHostname = tablet.Hostname
+			// use -tablet_hostname argument, if provided
+			if *tabletHostname != "" {
+				tablet.MysqlHostname = *tabletHostname
+			} else {
+				tablet.MysqlHostname = tablet.Hostname
+			}
 		})
 		mysqlPort, err := tm.MysqlDaemon.GetMysqlPort()
 		if err != nil {
