@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"vitess.io/vitess/go/test/utils"
 
@@ -2446,5 +2447,7 @@ func TestStreamOrderByLimitWithMultipleResults(t *testing.T) {
 
 	wantResult := sqltypes.MakeTestResult(sqltypes.MakeTestFields("id|col", "int32|int32"), "1|1", "2|2")
 	utils.MustMatch(t, wantResult, gotResult)
+	// some sleep to close all goroutines.
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, before, runtime.NumGoroutine(), "left open goroutines lingering")
 }
