@@ -194,10 +194,26 @@ func (sbc *SandboxConn) StreamExecute(ctx context.Context, target *querypb.Targe
 		sbc.sExecMu.Unlock()
 		return err
 	}
-	nextRs := sbc.getNextResult()
-	sbc.sExecMu.Unlock()
+	parse, _ := sqlparser.Parse(query)
 
-	return callback(nextRs)
+	if sbc.results == nil {
+		nextRs := sbc.getNextResult(parse)
+		sbc.sExecMu.Unlock()
+		return callback(nextRs)
+	}
+
+	for len(sbc.results) > 0 {
+		nextRs := sbc.getNextResult(parse)
+		sbc.sExecMu.Unlock()
+		err := callback(nextRs)
+		if err != nil {
+			return err
+		}
+		sbc.sExecMu.Lock()
+	}
+
+	sbc.sExecMu.Unlock()
+	return nil
 }
 
 // Begin is part of the QueryService interface.
@@ -493,7 +509,47 @@ func (sbc *SandboxConn) getNextResult() *sqltypes.Result {
 		sbc.results = sbc.results[1:]
 		return r
 	}
-	return SingleRowResult
+	if stmt == nil {
+		// if we didn't get a valid query, we'll assume we need a SELECT
+		return getSingleRowResult()
+	}
+	switch stmt.(type) {
+	case *sqlparser.Select,
+		*sqlparser.Union,
+		*sqlparser.Show,
+		sqlparser.Explain,
+		*sqlparser.OtherRead:
+		return getSingleRowResult()
+	case *sqlparser.Set,
+		sqlparser.DDLStatement,
+		*sqlparser.AlterVschema,
+		*sqlparser.Use,
+		*sqlparser.OtherAdmin,
+		*sqlparser.SetTransaction,
+		*sqlparser.Savepoint,
+		*sqlparser.SRollback,
+		*sqlparser.Release:
+		return &sqltypes.Result{}
+	}
+
+	// for everything else we fake a single row being affected
+	return &sqltypes.Result{RowsAffected: 1}
+}
+
+func (sbc *SandboxConn) setTxReservedID(transactionID int64, reservedID int64) {
+	sbc.mapMu.Lock()
+	defer sbc.mapMu.Unlock()
+	sbc.txIDToRID[transactionID] = reservedID
+}
+
+func (sbc *SandboxConn) ResultsAllFetched() bool {
+	return len(sbc.results) == 0
+}
+
+func (sbc *SandboxConn) getTxReservedID(txID int64) int64 {
+	sbc.mapMu.Lock()
+	defer sbc.mapMu.Unlock()
+	return sbc.txIDToRID[txID]
 }
 
 //StringQueries returns the queries executed as a slice of strings
