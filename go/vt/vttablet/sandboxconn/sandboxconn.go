@@ -1,12 +1,9 @@
 /*
 Copyright 2019 The Vitess Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -194,26 +191,10 @@ func (sbc *SandboxConn) StreamExecute(ctx context.Context, target *querypb.Targe
 		sbc.sExecMu.Unlock()
 		return err
 	}
-	parse, _ := sqlparser.Parse(query)
-
-	if sbc.results == nil {
-		nextRs := sbc.getNextResult(parse)
-		sbc.sExecMu.Unlock()
-		return callback(nextRs)
-	}
-
-	for len(sbc.results) > 0 {
-		nextRs := sbc.getNextResult(parse)
-		sbc.sExecMu.Unlock()
-		err := callback(nextRs)
-		if err != nil {
-			return err
-		}
-		sbc.sExecMu.Lock()
-	}
-
+	nextRs := sbc.getNextResult()
 	sbc.sExecMu.Unlock()
-	return nil
+
+	return callback(nextRs)
 }
 
 // Begin is part of the QueryService interface.
@@ -509,47 +490,7 @@ func (sbc *SandboxConn) getNextResult() *sqltypes.Result {
 		sbc.results = sbc.results[1:]
 		return r
 	}
-	if stmt == nil {
-		// if we didn't get a valid query, we'll assume we need a SELECT
-		return getSingleRowResult()
-	}
-	switch stmt.(type) {
-	case *sqlparser.Select,
-		*sqlparser.Union,
-		*sqlparser.Show,
-		sqlparser.Explain,
-		*sqlparser.OtherRead:
-		return getSingleRowResult()
-	case *sqlparser.Set,
-		sqlparser.DDLStatement,
-		*sqlparser.AlterVschema,
-		*sqlparser.Use,
-		*sqlparser.OtherAdmin,
-		*sqlparser.SetTransaction,
-		*sqlparser.Savepoint,
-		*sqlparser.SRollback,
-		*sqlparser.Release:
-		return &sqltypes.Result{}
-	}
-
-	// for everything else we fake a single row being affected
-	return &sqltypes.Result{RowsAffected: 1}
-}
-
-func (sbc *SandboxConn) setTxReservedID(transactionID int64, reservedID int64) {
-	sbc.mapMu.Lock()
-	defer sbc.mapMu.Unlock()
-	sbc.txIDToRID[transactionID] = reservedID
-}
-
-func (sbc *SandboxConn) ResultsAllFetched() bool {
-	return len(sbc.results) == 0
-}
-
-func (sbc *SandboxConn) getTxReservedID(txID int64) int64 {
-	sbc.mapMu.Lock()
-	defer sbc.mapMu.Unlock()
-	return sbc.txIDToRID[txID]
+	return SingleRowResult
 }
 
 //StringQueries returns the queries executed as a slice of strings
