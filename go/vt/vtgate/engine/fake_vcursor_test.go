@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -208,6 +210,7 @@ type loggingVCursor struct {
 	multiShardErrs []error
 
 	log []string
+	mu  sync.Mutex
 
 	resolvedTargetTabletType topodatapb.TabletType
 }
@@ -310,8 +313,10 @@ func (f *loggingVCursor) ExecuteStandalone(query string, bindvars map[string]*qu
 }
 
 func (f *loggingVCursor) StreamExecuteMulti(query string, rss []*srvtopo.ResolvedShard, bindVars []map[string]*querypb.BindVariable, callback func(reply *sqltypes.Result) error) error {
+	f.mu.Lock()
 	f.log = append(f.log, fmt.Sprintf("StreamExecuteMulti %s %s", query, printResolvedShardsBindVars(rss, bindVars)))
 	r, err := f.nextResult()
+	f.mu.Unlock()
 	if err != nil {
 		return err
 	}
