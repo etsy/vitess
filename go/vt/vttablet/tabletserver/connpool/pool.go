@@ -18,7 +18,6 @@ package connpool
 
 import (
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"time"
