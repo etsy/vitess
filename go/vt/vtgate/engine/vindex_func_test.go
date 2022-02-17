@@ -20,10 +20,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"vitess.io/vitess/go/vt/vtgate/evalengine"
-
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	"vitess.io/vitess/go/vt/vtgate/vindexes"
@@ -98,16 +94,22 @@ func TestVindexFuncMap(t *testing.T) {
 	// Unique Vindex returning 0 rows.
 	vf := testVindexFunc(&uvindex{})
 	got, err := vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := &sqltypes.Result{
 		Fields: sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
 	}
-	require.Equal(t, got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Execute(Map, uvindex(none)):\n%v, want\n%v", got, want)
+	}
 
 	// Unique Vindex returning 1 row.
 	vf = testVindexFunc(&uvindex{matchid: true})
 	got, err = vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want = sqltypes.MakeTestResult(
 		sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
 		"1|foo|||666f6f",
@@ -116,34 +118,16 @@ func TestVindexFuncMap(t *testing.T) {
 		row[2] = sqltypes.NULL
 		row[3] = sqltypes.NULL
 	}
-	require.Equal(t, got, want)
-
-	// Unique Vindex returning 3 rows
-	vf = &VindexFunc{
-		Fields: sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
-		Cols:   []int{0, 1, 2, 3, 4},
-		Opcode: VindexMap,
-		Vindex: &uvindex{matchid: true},
-		Value:  evalengine.TupleExpr{evalengine.NewLiteralInt(1), evalengine.NewLiteralInt(2), evalengine.NewLiteralInt(3)},
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Execute(Map, uvindex(none)):\n%v, want\n%v", got, want)
 	}
-	got, err = vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
-	want = sqltypes.MakeTestResult(
-		sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
-		"1|foo|||666f6f",
-		"2|foo|||666f6f",
-		"3|foo|||666f6f",
-	)
-	for _, row := range want.Rows {
-		row[2] = sqltypes.NULL
-		row[3] = sqltypes.NULL
-	}
-	require.Equal(t, got, want)
 
 	// Unique Vindex returning keyrange.
 	vf = testVindexFunc(&uvindex{matchkr: true})
 	got, err = vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want = &sqltypes.Result{
 		Fields: sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
 		Rows: [][]sqltypes.Value{{
@@ -155,21 +139,29 @@ func TestVindexFuncMap(t *testing.T) {
 		}},
 		RowsAffected: 0,
 	}
-	require.Equal(t, got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Execute(Map, uvindex(none)):\n%v, want\n%v", got, want)
+	}
 
 	// NonUnique Vindex returning 0 rows.
 	vf = testVindexFunc(&nvindex{})
 	got, err = vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want = &sqltypes.Result{
 		Fields: sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
 	}
-	require.Equal(t, got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Execute(Map, uvindex(none)):\n%v, want\n%v", got, want)
+	}
 
 	// NonUnique Vindex returning 2 rows.
 	vf = testVindexFunc(&nvindex{matchid: true})
 	got, err = vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want = sqltypes.MakeTestResult(
 		sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
 		"1|foo|||666f6f",
@@ -180,12 +172,16 @@ func TestVindexFuncMap(t *testing.T) {
 		row[2] = sqltypes.NULL
 		row[3] = sqltypes.NULL
 	}
-	require.Equal(t, got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Execute(Map, uvindex(none)):\n%v, want\n%v", got, want)
+	}
 
 	// NonUnique Vindex returning keyrange
 	vf = testVindexFunc(&nvindex{matchkr: true})
 	got, err = vf.TryExecute(nil, nil, false)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want = &sqltypes.Result{
 		Fields: sqltypes.MakeTestFields("id|keyspace_id|hex(keyspace_id)|range_start|range_end", "varbinary|varbinary|varbinary|varbinary|varbinary"),
 		Rows: [][]sqltypes.Value{{
@@ -197,7 +193,9 @@ func TestVindexFuncMap(t *testing.T) {
 		}},
 		RowsAffected: 0,
 	}
-	require.Equal(t, got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Execute(Map, uvindex(none)):\n%v, want\n%v", got, want)
+	}
 }
 
 func TestVindexFuncStreamExecute(t *testing.T) {

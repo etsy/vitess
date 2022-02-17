@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"vitess.io/vitess/go/vt/vterrors"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -29,8 +28,6 @@ import (
 
 	querypb "vitess.io/vitess/go/vt/proto/query"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
-	"vitess.io/vitess/go/vt/proto/vtrpc"
-	vtrpcpb "vitess.io/vitess/go/vt/proto/vtrpc"
 )
 
 var _ Primitive = (*VindexFunc)(nil)
@@ -115,75 +112,56 @@ func (vf *VindexFunc) mapVindex(vcursor VCursor, bindVars map[string]*querypb.Bi
 	if err != nil {
 		return nil, err
 	}
-	var values []sqltypes.Value
-	if k.Value().Type() == querypb.Type_TUPLE {
-		values = k.TupleValues()
-	} else {
-		values = append(values, k.Value())
+	vkey, err := evalengine.Cast(k, sqltypes.VarBinary)
+	if err != nil {
+		return nil, err
 	}
 	result := &sqltypes.Result{
 		Fields: vf.Fields,
 	}
-	for _, value := range values {
-		vkey, err := evalengine.Cast(value, sqltypes.VarBinary)
-		if err != nil {
-			return nil, err
+
+	destinations, err := vf.Vindex.Map(vcursor, []sqltypes.Value{k})
+	if err != nil {
+		return nil, err
+	}
+	switch d := destinations[0].(type) {
+	case key.DestinationKeyRange:
+		if d.KeyRange != nil {
+			result.Rows = append(result.Rows, vf.buildRow(vkey, nil, d.KeyRange))
 		}
-		destinations, err := vf.Vindex.Map(vcursor, []sqltypes.Value{value})
-		if err != nil {
-			return nil, err
-		}
-		switch d := destinations[0].(type) {
-		case key.DestinationKeyRange:
-			if d.KeyRange != nil {
-				row, err := vf.buildRow(vkey, nil, d.KeyRange)
+	case key.DestinationKeyspaceID:
+		if len(d) > 0 {
+			if vcursor != nil {
+				resolvedShards, _, err := vcursor.ResolveDestinations(vcursor.GetKeyspace(), nil, []key.Destination{d})
 				if err != nil {
-					return result, err
+					return nil, err
 				}
-				result.Rows = append(result.Rows, row)
-			}
-		case key.DestinationKeyspaceID:
-			if len(d) > 0 {
-				if vcursor != nil {
-					resolvedShards, _, err := vcursor.ResolveDestinations(vcursor.GetKeyspace(), nil, []key.Destination{d})
-					if err != nil {
-						return nil, err
-					}
-					kr, err := key.ParseShardingSpec(resolvedShards[0].Target.Shard)
-					if err != nil {
-						return nil, err
-					}
-					row, err := vf.buildRow(vkey, d, kr[0])
-					if err != nil {
-						return result, err
-					}
-					result.Rows = append(result.Rows, row)
-				} else {
-					row, err := vf.buildRow(vkey, d, nil)
-					if err != nil {
-						return result, err
-					}
-					result.Rows = append(result.Rows, row)
-				}
-			}
-		case key.DestinationKeyspaceIDs:
-			for _, ksid := range d {
-				row, err := vf.buildRow(vkey, ksid, nil)
+				kr, err := key.ParseShardingSpec(resolvedShards[0].Target.Shard)
 				if err != nil {
-					return result, err
+					return nil, err
 				}
-				result.Rows = append(result.Rows, row)
+				result.Rows = [][]sqltypes.Value{
+					vf.buildRow(vkey, d, kr[0]),
+				}
+			} else {
+				result.Rows = [][]sqltypes.Value{
+					vf.buildRow(vkey, d, nil),
+				}
 			}
-		case key.DestinationNone:
-			// Nothing to do.
-		default:
-			return result, vterrors.NewErrorf(vtrpcpb.Code_INTERNAL, vterrors.WrongTypeForVar, "unexpected destination type: %T", d)
 		}
+	case key.DestinationKeyspaceIDs:
+		for _, ksid := range d {
+			result.Rows = append(result.Rows, vf.buildRow(vkey, ksid, nil))
+		}
+	case key.DestinationNone:
+		// Nothing to do.
+	default:
+		panic("unexpected")
 	}
 	return result, nil
 }
 
-func (vf *VindexFunc) buildRow(id sqltypes.Value, ksid []byte, kr *topodatapb.KeyRange) ([]sqltypes.Value, error) {
+func (vf *VindexFunc) buildRow(id sqltypes.Value, ksid []byte, kr *topodatapb.KeyRange) []sqltypes.Value {
 	row := make([]sqltypes.Value, 0, len(vf.Fields))
 	for _, col := range vf.Cols {
 		switch col {
@@ -220,10 +198,10 @@ func (vf *VindexFunc) buildRow(id sqltypes.Value, ksid []byte, kr *topodatapb.Ke
 				row = append(row, sqltypes.NULL)
 			}
 		default:
-			return row, vterrors.NewErrorf(vtrpc.Code_OUT_OF_RANGE, vterrors.BadFieldError, "column %v out of range", col)
+			panic("BUG: unexpected column number")
 		}
 	}
-	return row, nil
+	return row
 }
 
 func (vf *VindexFunc) description() PrimitiveDescription {
