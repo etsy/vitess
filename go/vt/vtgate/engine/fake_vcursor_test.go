@@ -54,6 +54,11 @@ type noopVCursor struct {
 	ctx context.Context
 }
 
+// SetContextWithValue implements VCursor interface.
+func (t *noopVCursor) SetContextWithValue(key, value interface{}) func() {
+	return func() {}
+}
+
 func (t *noopVCursor) ExecutePrimitive(primitive Primitive, bindVars map[string]*querypb.BindVariable, wantfields bool) (*sqltypes.Result, error) {
 	return primitive.TryExecute(t, bindVars, wantfields)
 }
