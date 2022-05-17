@@ -25,7 +25,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 
-	_ "github.com/mattn/go-sqlite3" // sqlite driver
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -71,7 +71,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite3", m["table"])
+	db, err := sql.Open("sqlite3", m["path"])
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +112,8 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 	if err != nil {
 		return nil, err
 	}
+	defer stmt.Close()
+
 	var args []interface{}
 	for _, id := range ids {
 		args = append(args, id.ToString())
@@ -126,13 +128,13 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 	var to []byte
 	i := 0
 	for results.Next() {
-		err = results.Scan(from, to)
+		err = results.Scan(&from, &to)
 		if err != nil {
 			return nil, err
 		}
 		for args[i] != from {
 			out = append(out, key.DestinationNone{})
-			i++
+			i += 1
 		}
 		out = append(out, key.DestinationKeyspaceID(to))
 		i++
@@ -145,22 +147,24 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 
 // Verify returns true if ids maps to ksids.
 func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
-	out := make([]bool, len(ids))
+	out := make([]bool, 0, len(ids))
 	query := fmt.Sprintf("select %s from %s where %s = ? and %s = ?", slu.from, slu.table, slu.from, slu.to)
 	stmt, err := slu.db.Prepare(query)
 	if err != nil {
 		return nil, err
 	}
-	var args []interface{}
+	defer stmt.Close()
+
 	for i := range ids {
-		args = append(args, ids[i].ToString(), ksids[i])
-		results, err := stmt.Query(args...)
+		results, err := stmt.Query(ids[i].ToString(), ksids[i])
 		if err != nil {
 			return nil, err
 		}
-		defer results.Close()
-		out[i] = results.Next()
-		args = nil
+		out = append(out, results.Next())
+		results.Close()
+		if err = results.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -213,6 +217,7 @@ func (slu *SqliteLookupUnique) Create(vcursor VCursor, rowsColValues [][]sqltype
 	if err != nil {
 		return err
 	}
+	defer stmt.Close()
 	_, err = stmt.Exec(args...)
 	if err != nil {
 		return err
@@ -237,6 +242,7 @@ func (slu *SqliteLookupUnique) Delete(vcursor VCursor, rowsColValues [][]sqltype
 	if err != nil {
 		return err
 	}
+	defer stmt.Close()
 	_, err = stmt.Exec(args...)
 	if err != nil {
 		return err
