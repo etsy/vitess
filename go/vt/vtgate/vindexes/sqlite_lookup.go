@@ -17,6 +17,7 @@ limitations under the License.
 package vindexes
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -148,20 +149,28 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 // Verify returns true if ids maps to ksids.
 func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 	out := make([]bool, 0, len(ids))
-	query := fmt.Sprintf("select %s from %s where %s = ? and %s = ?", slu.from, slu.table, slu.from, slu.to)
+	query := fmt.Sprintf("select %s from %s where %s = ?", slu.to, slu.table, slu.from)
 	stmt, err := slu.db.Prepare(query)
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
-
 	for i := range ids {
-		results, err := stmt.Query(ids[i].ToString(), ksids[i])
+		results, err := stmt.Query(ids[i].ToString())
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, results.Next())
-		results.Close()
+		for results.Next() {
+			var ksid []byte
+			err = results.Scan(&ksid)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, bytes.Equal(ksid, ksids[i]))
+		}
+		if err := results.Close(); err != nil {
+			return nil, err
+		}
 		if err = results.Err(); err != nil {
 			return nil, err
 		}
