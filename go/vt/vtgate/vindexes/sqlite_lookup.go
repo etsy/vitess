@@ -26,7 +26,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // sqlite driver
 )
 
 var (
@@ -135,7 +135,7 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 		}
 		for args[i] != from {
 			out = append(out, key.DestinationNone{})
-			i += 1
+			i++
 		}
 		out = append(out, key.DestinationKeyspaceID(to))
 		i++
@@ -160,13 +160,15 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 		if err != nil {
 			return nil, err
 		}
-		for results.Next() {
+		if results.Next() {
 			var ksid []byte
 			err = results.Scan(&ksid)
 			if err != nil {
 				return nil, err
 			}
 			out = append(out, bytes.Equal(ksid, ksids[i]))
+		} else {
+			out = append(out, false)
 		}
 		if err := results.Close(); err != nil {
 			return nil, err
@@ -244,15 +246,22 @@ func (slu *SqliteLookupUnique) Delete(vcursor VCursor, rowsColValues [][]sqltype
 	if len(rowsColValues) != 1 {
 		return fmt.Errorf("SqliteLookupUnique.Delete: column vindex count should be 1: got %d", len(rowsColValues))
 	}
-	query := fmt.Sprintf("delete from %s where ? and ?", slu.table)
-	var args []interface{}
-	args = append(args, rowsColValues[0], ksid)
+
+	valid, err := slu.Verify(vcursor, rowsColValues[0], [][]byte{ksid})
+	if err != nil {
+		return err
+	}
+	if !valid[0] {
+		return nil
+	}
+
+	query := fmt.Sprintf("delete from %s where %s = ?", slu.table, slu.from)
 	stmt, err := slu.db.Prepare(query)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(args...)
+	_, err = stmt.Exec(rowsColValues[0][0].ToString())
 	if err != nil {
 		return err
 	}
