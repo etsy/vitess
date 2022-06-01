@@ -28,6 +28,7 @@ import (
 	"vitess.io/vitess/go/vt/key"
 )
 
+// Ensure that the Vindex properties are correctly defined upon creation
 func TestSqliteLookupUniqueNew(t *testing.T) {
 	vindex, _ := CreateVindex("sqlite_lookup_unique", "sqlite_lookup_unique", map[string]string{
 		"driver":    "sqlite3",
@@ -56,6 +57,7 @@ func TestSqliteLookupUniqueNew(t *testing.T) {
 	}
 }
 
+// Ensure that the Vindex properties are correctly defined upon creation
 func TestSqliteLookupUniqueInfo(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, false, "path/to/db")
 	assert.Equal(t, 10, sqliteLookupUnique.Cost())
@@ -64,6 +66,7 @@ func TestSqliteLookupUniqueInfo(t *testing.T) {
 	assert.False(t, sqliteLookupUnique.NeedsVCursor())
 }
 
+// Ensure that the Vindex correctly maps ids to destinations
 func TestSqliteLookupUniqueMap(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, false, "testdata/sqlite_vindex_test.db")
 
@@ -80,15 +83,16 @@ func TestSqliteLookupUniqueMap(t *testing.T) {
 
 }
 
+// Ensure that the Vindex correctly maps ids to destinations in read only mode
 func TestSqliteLookupUniqueMapReadOnly(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, true, "testdata/sqlite_vindex_test.db")
 
-	got, err := sqliteLookupUnique.Map(nil, []sqltypes.Value{sqltypes.NewInt64(1), sqltypes.NewInt64(2), sqltypes.NewInt64(3)})
+	got, err := sqliteLookupUnique.Map(nil, []sqltypes.Value{sqltypes.NewInt64(1), sqltypes.NewInt64(3), sqltypes.NewInt64(2)})
 	require.NoError(t, err)
 	want := []key.Destination{
 		key.DestinationKeyspaceID([]byte("10")),
-		key.DestinationKeyspaceID([]byte("11")),
 		key.DestinationNone{},
+		key.DestinationKeyspaceID([]byte("11")),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("SqliteLookupUnique.Map(): %+v, want %+v", got, want)
@@ -96,6 +100,7 @@ func TestSqliteLookupUniqueMapReadOnly(t *testing.T) {
 
 }
 
+// Ensure that the Vindex correctly verifies results
 func TestSqliteLookupUniqueVerify(t *testing.T) {
 	sqlitelookupunique := createSqliteLookupUnique(t, false, "testdata/sqlite_vindex_test.db")
 
@@ -105,6 +110,7 @@ func TestSqliteLookupUniqueVerify(t *testing.T) {
 	assert.Equalf(t, want, got, "SqliteLookupUnique.Verify(): %+v, want %+v", got, want)
 }
 
+// Ensure that the Vindex correctly verifies results in read only mode
 func TestSqliteLookupUniqueVerifyReadOnly(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, true, "testdata/sqlite_vindex_test.db")
 
@@ -114,6 +120,7 @@ func TestSqliteLookupUniqueVerifyReadOnly(t *testing.T) {
 	assert.Equalf(t, want, got, "SqliteLookupUnique.Verify(): %+v, want %+v", got, want)
 }
 
+// Ensure that the Vindex correctly creates lookup records (in a temporary table)
 func TestSqliteLookupUniqueCreate(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, false, "testdata/temp.db")
 	defer os.Remove("testdata/temp.db")
@@ -129,6 +136,7 @@ func TestSqliteLookupUniqueCreate(t *testing.T) {
 	assert.Equalf(t, want, got, "SqliteLookupUnique.Create(): %+v, want %+v", got, want)
 }
 
+// Ensure that the Vindex cannot create lookup records in read only mode
 func TestSqliteLookupUniqueCreateReadOnly(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, true, "testdata/temp.db")
 	defer os.Remove("testdata/temp.db")
@@ -140,6 +148,7 @@ func TestSqliteLookupUniqueCreateReadOnly(t *testing.T) {
 	}
 }
 
+// Ensure that the Vindex correctly removes lookup records (from a temporary table)
 func TestSqliteLookupUniqueDelete(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, false, "testdata/temp.db")
 	defer os.Remove("testdata/temp.db")
@@ -165,6 +174,7 @@ func TestSqliteLookupUniqueDelete(t *testing.T) {
 	assert.False(t, got[0], "SqliteLookupUnique.Delete: lookup row was not deleted")
 }
 
+// Ensure that the Vindex cannot remove lookup records in read only mode
 func TestSqliteLookupUniqueDeleteReadOnly(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, true, "testdata/temp.db")
 	defer os.Remove("testdata/temp.db")
@@ -176,6 +186,7 @@ func TestSqliteLookupUniqueDeleteReadOnly(t *testing.T) {
 	}
 }
 
+// Ensure that the Vindex correctly updates lookup records (in a temporary table)
 func TestSqliteLookupUniqueUpdate(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, false, "testdata/temp.db")
 	defer os.Remove("testdata/temp.db")
@@ -196,6 +207,7 @@ func TestSqliteLookupUniqueUpdate(t *testing.T) {
 	assert.Equal(t, want, got, "SqliteLookupUnique.Update: lookup row was not updated")
 }
 
+// Ensure that the Vindex cannot update lookup records in read only mode
 func TestSqliteLookupUniqueUpdateReadOnly(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t, true, "testdata/temp.db")
 	defer os.Remove("testdata/temp.db")
