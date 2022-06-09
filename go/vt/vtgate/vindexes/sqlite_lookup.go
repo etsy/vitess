@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
@@ -30,8 +31,8 @@ import (
 )
 
 var (
-	_ SingleColumn = (*LookupUnique)(nil)
-	_ Lookup       = (*LookupUnique)(nil)
+	_ SingleColumn = (*SqliteLookupUnique)(nil)
+	_ Lookup       = (*SqliteLookupUnique)(nil)
 )
 
 func init() {
@@ -42,13 +43,11 @@ func init() {
 // The table is expected to define the id column as unique. It's
 // Unique and a Lookup.
 type SqliteLookupUnique struct {
-	name        string
-	db          *sql.DB
-	readOnly    bool
-	table       string
-	from        string
-	to          string
-	ignoreNulls bool
+	name  string
+	db    *sql.DB
+	table string
+	from  string
+	to    string
 }
 
 // NewSqliteLookupUnique creates a SqliteLookupUnique vindex.
@@ -58,8 +57,8 @@ type SqliteLookupUnique struct {
 //   from: the column in the table that has the 'from' value of the lookup vindex.
 //   to: the 'to' column name of the table that contains the keyrange or keyspace id.
 //
-// The following fields are optional:
-//   read_only: in this mode, Create, Delete, and Update function calls will result in error.
+//   As writes cannot be distributed across all vtgate machines, and writes must obtain
+//   locks on the sqlite db, SQLite lookups are always read only
 func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	slu := &SqliteLookupUnique{name: name}
 	slu.table = m["table"]
@@ -67,18 +66,17 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	slu.to = m["to"]
 
 	var err error
-	slu.readOnly, err = boolFromMap(m, "read_only")
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := sql.Open("sqlite3", m["path"])
+	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
+	dbDSN := "file:" + m["path"] + "?cache=shared&mode=ro&_query_only=true&immutable=true"
+	db, err := sql.Open("sqlite3", dbDSN)
 	if err != nil {
 		return nil, err
 	}
 	if db != nil {
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
+		db.SetMaxOpenConns(0) // no maximum
+		db.SetMaxIdleConns(100)
+		db.SetConnMaxIdleTime(10 * time.Minute)
+		db.SetConnMaxLifetime(time.Hour)
 	}
 	slu.db = db
 
@@ -90,9 +88,9 @@ func (slu *SqliteLookupUnique) String() string {
 	return slu.name
 }
 
-// Cost returns the cost of this vindex as 10.
+// Cost returns the cost of this vindex as 5.
 func (slu *SqliteLookupUnique) Cost() int {
-	return 10
+	return 5
 }
 
 // IsUnique returns true since the Vindex is unique.
@@ -100,7 +98,7 @@ func (slu *SqliteLookupUnique) IsUnique() bool {
 	return true
 }
 
-// NeedsVCursor satisfies the Vindex interface.
+// NeedsVCursor returns false since the Vindex does not need to execute queries to VTTablet.
 func (slu *SqliteLookupUnique) NeedsVCursor() bool {
 	return false
 }
@@ -110,66 +108,20 @@ func (slu *SqliteLookupUnique) NeedsVCursor() bool {
 // This mapping is used to determine which shard contains a row. If the id is absent from the vindex
 // lookup table, Map returns key.DestinationNone{}, which does not map to any shard.
 func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
-	out := make([]key.Destination, 0, len(ids))
-	query := fmt.Sprintf("select %s, %s from %s where %s in (%s)", slu.from, slu.to, slu.table, slu.from, strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", "))
-	stmt, err := slu.db.Prepare(query)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-
-	var args []interface{}
-	for _, id := range ids {
-		args = append(args, id.ToString())
-	}
-	results, err := stmt.Query(args...)
-	if err != nil {
-		return nil, err
-	}
-	defer results.Close()
-
-	var from string
-	var to []byte
-	i := 0
-	for results.Next() {
-		err = results.Scan(&from, &to)
-		if err != nil {
-			return nil, err
-		}
-		// If id is absent from the vindex lookup table, map it to key.DestinationNone
-		for args[i] != from {
-			out = append(out, key.DestinationNone{})
-			i++
-		}
-		out = append(out, key.DestinationKeyspaceID(to))
-		i++
-	}
-	// If no results are found for a given input id, map it to key.DestinationNone
-	for len(out) != len(args) {
-		out = append(out, key.DestinationNone{})
-	}
-	return out, nil
-}
-
-// Verify returns true if ids maps to ksids.
-func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
-	out := make([]bool, 0, len(ids))
+	// Query database
 	query := fmt.Sprintf("select %s, %s from %s where %s in (%s)", slu.from, slu.to, slu.table, slu.from, strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", "))
 	var args []interface{}
 	for _, id := range ids {
 		args = append(args, id.ToString())
 	}
-	stmt, err := slu.db.Prepare(query)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-	results, err := stmt.Query(args...)
+	results, err := slu.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer results.Close()
-	i := 0
+
+	// Create map of id => ksid from results
+	resultMap := make(map[string][]byte, len(ids))
 	for results.Next() {
 		var id string
 		var ksid []byte
@@ -177,120 +129,78 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 		if err != nil {
 			return nil, err
 		}
-		// If no results are found for a given input id, map it to false
-		for id != ids[i].ToString() {
-			out = append(out, false)
-			i++
-		}
-		out = append(out, bytes.Equal(ksid, ksids[i]))
-		i++
+		resultMap[id] = ksid
 	}
-	// If no results are found for a given input id, map it to false
-	for len(out) != len(args) {
-		out = append(out, false)
+
+	// Build output from result map
+	out := make([]key.Destination, 0, len(ids))
+	for _, id := range ids {
+		if ksid, ok := resultMap[id.ToString()]; ok {
+			out = append(out, key.DestinationKeyspaceID(ksid))
+		} else {
+			out = append(out, key.DestinationNone{})
+		}
+	}
+	return out, nil
+}
+
+// Verify returns true if ids maps to ksids.
+func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+	// Query database
+	query := fmt.Sprintf("select %s, %s from %s where %s in (%s)", slu.from, slu.to, slu.table, slu.from, strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", "))
+	var args []interface{}
+	for _, id := range ids {
+		args = append(args, id.ToString())
+	}
+	results, err := slu.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer results.Close()
+
+	// Create map of id => ksid from results
+	resultMap := make(map[string][]byte, len(ids))
+	for results.Next() {
+		var id string
+		var ksid []byte
+		err = results.Scan(&id, &ksid)
+		if err != nil {
+			return nil, err
+		}
+		resultMap[id] = ksid
+	}
+
+	// Build output from result map
+	out := make([]bool, 0, len(ids))
+	for i, id := range ids {
+		if ksid, ok := resultMap[id.ToString()]; ok {
+			out = append(out, bytes.Equal(ksid, ksids[i]))
+		} else {
+			out = append(out, ok)
+		}
 	}
 	return out, nil
 }
 
 // Create reserves the id by inserting it into the vindex table.
 func (slu *SqliteLookupUnique) Create(vcursor VCursor, rowsColValues [][]sqltypes.Value, ksids [][]byte, ignoreMode bool) error {
-	// Cannot create new lookups in read-only mode
-	if slu.readOnly {
-		return fmt.Errorf("SqliteLookupUnique.Create: tried to create new lookup row in read-only mode")
-	}
-
-	// Remove nulls (or throw if nulls are not allowed)
-	trimmedFromValues := make([]string, 0, len(rowsColValues))
-	trimmedToValues := make([][]byte, 0, len(ksids))
-	for i, row := range rowsColValues {
-		if row[0].IsNull() {
-			if !slu.ignoreNulls {
-				return fmt.Errorf("SqliteLookupUnique.Create: input has null values: row: %d, col: %d", row[0], ksids[i])
-			}
-			continue
-		}
-		if len(row) != 1 {
-			return fmt.Errorf("SqliteLookupUnique.Create: column vindex count should be 1: got %d", len(trimmedFromValues[0]))
-		}
-		trimmedFromValues = append(trimmedFromValues, row[0].ToString())
-		trimmedToValues = append(trimmedToValues, ksids[i])
-	}
-	if len(trimmedFromValues) == 0 {
-		return nil
-	}
-
-	// Build query and params
-	var query string
-	if ignoreMode {
-		query = fmt.Sprintf("insert or ignore into %s(", slu.table)
-	} else {
-		query = fmt.Sprintf("insert into %s(", slu.table)
-	}
-	query += fmt.Sprintf("%s, %s) values (", slu.from, slu.to)
-	var args []interface{}
-	for i, toVal := range trimmedToValues {
-		fromVal := trimmedFromValues[i]
-		if i != 0 {
-			query += ", ("
-		}
-		query += "?,?)"
-		args = append(args, fromVal, toVal)
-	}
-	stmt, err := slu.db.Prepare(query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(args...)
-	if err != nil {
-		return err
-	}
-	return nil
+	// Cannot create new lookups in a SqliteLookup, as the database is always
+	// in read-only mode.
+	return fmt.Errorf("SqliteLookupUnique.Create: tried to create new lookup row in read-only SQLite database")
 }
 
 // Delete deletes the entry from the vindex lookup table.
 func (slu *SqliteLookupUnique) Delete(vcursor VCursor, rowsColValues [][]sqltypes.Value, ksid []byte) error {
-	// Cannot update lookups in read-only mode
-	if slu.readOnly {
-		return fmt.Errorf("SqliteLookupUnique.Delete: tried to delete lookup row in read-only mode")
-	}
-
-	if len(rowsColValues) != 1 {
-		return fmt.Errorf("SqliteLookupUnique.Delete: column vindex count should be 1: got %d", len(rowsColValues))
-	}
-
-	valid, err := slu.Verify(vcursor, rowsColValues[0], [][]byte{ksid})
-	if err != nil {
-		return err
-	}
-	if !valid[0] {
-		return nil
-	}
-
-	query := fmt.Sprintf("delete from %s where %s = ?", slu.table, slu.from)
-	stmt, err := slu.db.Prepare(query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(rowsColValues[0][0].ToString())
-	if err != nil {
-		return err
-	}
-	return nil
+	// Cannot create new lookups in a SqliteLookup, as the database is always
+	// in read-only mode.
+	return fmt.Errorf("SqliteLookupUnique.Delete: tried to delete lookup row from read-only SQLite database")
 }
 
 // Update updates the entry in the vindex lookup table.
 func (slu *SqliteLookupUnique) Update(vcursor VCursor, oldValues []sqltypes.Value, ksid []byte, newValues []sqltypes.Value) error {
-	// Cannot update lookups in read-only mode
-	if slu.readOnly {
-		return fmt.Errorf("SqliteLookupUnique.Update: tried to update lookup row in read-only mode")
-	}
-
-	if err := slu.Delete(vcursor, [][]sqltypes.Value{oldValues}, ksid); err != nil {
-		return err
-	}
-	return slu.Create(vcursor, [][]sqltypes.Value{newValues}, [][]byte{ksid}, false /* ignoreMode */)
+	// Cannot create new lookups in a SqliteLookup, as the database is always
+	// in read-only mode.
+	return fmt.Errorf("SqliteLookupUnique.Update: tried to update lookup row in read-only SQLite database")
 }
 
 // MarshalJSON returns a JSON representation of LookupUnique.
@@ -300,5 +210,5 @@ func (slu *SqliteLookupUnique) MarshalJSON() ([]byte, error) {
 
 // IsBackfilling implements the LookupBackfill interface
 func (slu *SqliteLookupUnique) IsBackfilling() bool {
-	return !slu.readOnly
+	return false
 }
