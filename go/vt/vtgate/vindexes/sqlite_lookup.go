@@ -109,10 +109,18 @@ func (slu *SqliteLookupUnique) NeedsVCursor() bool {
 // lookup table, Map returns key.DestinationNone{}, which does not map to any shard.
 func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
 	// Query database
-	query := fmt.Sprintf("select %s, %s from %s where %s in (%s)", slu.from, slu.to, slu.table, slu.from, strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", "))
+	var query string
 	var args []interface{}
-	for _, id := range ids {
-		args = append(args, id.ToString())
+	if len(ids) == 1 { // use prepared statement
+		query = fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from)
+		args = append(args, ids[0].ToString())
+	} else { // do not use prepared statement
+		query = fmt.Sprintf("select %s, %s from %s where %s in (", slu.from, slu.to, slu.table, slu.from)
+		for _, id := range ids {
+			query += id.ToString() + ", "
+		}
+		query = strings.TrimSuffix(query, ", ")
+		query += ")"
 	}
 	results, err := slu.db.Query(query, args...)
 	if err != nil {
@@ -153,10 +161,18 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 // Verify returns true if ids maps to ksids.
 func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 	// Query database
-	query := fmt.Sprintf("select %s, %s from %s where %s in (%s)", slu.from, slu.to, slu.table, slu.from, strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", "))
+	var query string
 	var args []interface{}
-	for _, id := range ids {
-		args = append(args, id.ToString())
+	if len(ids) == 1 {
+		query = fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from)
+		args = append(args, ids[0].ToString())
+	} else {
+		query = fmt.Sprintf("select %s, %s from %s where %s in (", slu.from, slu.to, slu.table, slu.from)
+		for _, id := range ids {
+			query += id.ToString() + ", "
+		}
+		query = strings.TrimSuffix(query, ", ")
+		query += ")"
 	}
 	results, err := slu.db.Query(query, args...)
 	if err != nil {
