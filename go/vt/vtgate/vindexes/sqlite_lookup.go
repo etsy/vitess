@@ -118,7 +118,9 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 	if err != nil {
 		return nil, err
 	}
-	defer results.Close()
+	defer func() {
+		err = results.Close()
+	}()
 
 	// Create map of id => ksid from results
 	resultMap := make(map[string][]byte, len(ids))
@@ -141,7 +143,11 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 			out = append(out, key.DestinationNone{})
 		}
 	}
-	return out, nil
+	if err = results.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, err
 }
 
 // Verify returns true if ids maps to ksids.
@@ -156,7 +162,9 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 	if err != nil {
 		return nil, err
 	}
-	defer results.Close()
+	defer func() {
+		err = results.Close()
+	}()
 
 	// Create map of id => ksid from results
 	resultMap := make(map[string][]byte, len(ids))
@@ -179,7 +187,11 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 			out = append(out, ok)
 		}
 	}
-	return out, nil
+	if err = results.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, err
 }
 
 // Create reserves the id by inserting it into the vindex table.
