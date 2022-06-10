@@ -43,11 +43,12 @@ func init() {
 // The table is expected to define the id column as unique. It's
 // Unique and a Lookup.
 type SqliteLookupUnique struct {
-	name  string
-	db    *sql.DB
-	table string
-	from  string
-	to    string
+	name           string
+	db             *sql.DB
+	table          string
+	from           string
+	to             string
+	preparedSelect *sql.Stmt
 }
 
 // NewSqliteLookupUnique creates a SqliteLookupUnique vindex.
@@ -80,6 +81,12 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	}
 	slu.db = db
 
+	stmt, err := slu.db.Prepare(fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from))
+	if err != nil {
+		return nil, err
+	}
+	slu.preparedSelect = stmt
+
 	return slu, nil
 }
 
@@ -110,10 +117,13 @@ func (slu *SqliteLookupUnique) NeedsVCursor() bool {
 func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
 	// Query database
 	var query string
-	var args []interface{}
+	var results *sql.Rows
+	var err error
 	if len(ids) == 1 { // use prepared statement
-		query = fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from)
-		args = append(args, ids[0].ToString())
+		results, err = slu.preparedSelect.Query(ids[0].ToString())
+		if err != nil {
+			return nil, err
+		}
 	} else { // do not use prepared statement
 		query = fmt.Sprintf("select %s, %s from %s where %s in (", slu.from, slu.to, slu.table, slu.from)
 		for _, id := range ids {
@@ -121,10 +131,10 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 		}
 		query = strings.TrimSuffix(query, ", ")
 		query += ")"
-	}
-	results, err := slu.db.Query(query, args...)
-	if err != nil {
-		return nil, err
+		results, err = slu.db.Query(query)
+		if err != nil {
+			return nil, err
+		}
 	}
 	defer func() {
 		err = results.Close()
@@ -162,21 +172,24 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 	// Query database
 	var query string
-	var args []interface{}
-	if len(ids) == 1 {
-		query = fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from)
-		args = append(args, ids[0].ToString())
-	} else {
+	var results *sql.Rows
+	var err error
+	if len(ids) == 1 { // use prepared statement
+		results, err = slu.preparedSelect.Query(ids[0].ToString())
+		if err != nil {
+			return nil, err
+		}
+	} else { // do not use prepared statement
 		query = fmt.Sprintf("select %s, %s from %s where %s in (", slu.from, slu.to, slu.table, slu.from)
 		for _, id := range ids {
 			query += id.ToString() + ", "
 		}
 		query = strings.TrimSuffix(query, ", ")
 		query += ")"
-	}
-	results, err := slu.db.Query(query, args...)
-	if err != nil {
-		return nil, err
+		results, err = slu.db.Query(query)
+		if err != nil {
+			return nil, err
+		}
 	}
 	defer func() {
 		err = results.Close()
