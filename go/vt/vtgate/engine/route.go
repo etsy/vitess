@@ -285,7 +285,7 @@ func (route *Route) executeInternal(vcursor VCursor, bindVars map[string]*queryp
 	}
 
 	// Select Next - sequence query does not need to be executed in a dedicated connection (reserved or transaction)
-	if route.Opcode == Next {
+	if route.Opcode == SelectNext {
 		restoreCtx := vcursor.SetContextWithValue(IgnoreReserveTxn, true)
 		defer restoreCtx()
 	}
