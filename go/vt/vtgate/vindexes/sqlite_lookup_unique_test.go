@@ -116,11 +116,10 @@ func TestSqliteLookupUniqueUpdate(t *testing.T) {
 func createSqliteLookupUnique(t *testing.T) SingleColumn {
 	t.Helper()
 	l, err := CreateVindex("sqlite_lookup_unique", "sqlite_lookup_unique", map[string]string{
-		"driver": "sqlite3",
-		"path":   "testdata/sqlite_vindex_test.db",
-		"table":  "t",
-		"from":   "id",
-		"to":     "ksid",
+		"path":  "testdata/sqlite_vindex_test.db",
+		"table": "t",
+		"from":  "id",
+		"to":    "ksid",
 	})
 	if err != nil {
 		t.Fatal(err)
