@@ -36,7 +36,7 @@ func TestHybridInfo(t *testing.T) {
 	assert.True(t, hybridHashReverse.IsUnique())
 	assert.Equal(t, "hash", hybridHashReverse.(*Hybrid).vindexA.String())
 	assert.Equal(t, "reverse_bits", hybridHashReverse.(*Hybrid).vindexB.String())
-	assert.Equal(t, int64(5), hybridHashReverse.(*Hybrid).threshold)
+	assert.Equal(t, uint64(5), hybridHashReverse.(*Hybrid).threshold)
 
 	hybridSqliteHash := createHybrid("sqlite_lookup_unique", "hash", 5, map[string]string{
 		"path":  "testdata/sqlite_vindex_test.db",
@@ -49,7 +49,7 @@ func TestHybridInfo(t *testing.T) {
 	assert.True(t, hybridSqliteHash.IsUnique())
 	assert.Equal(t, "sqlite_lookup_unique", hybridSqliteHash.(*Hybrid).vindexA.String())
 	assert.Equal(t, "hash", hybridSqliteHash.(*Hybrid).vindexB.String())
-	assert.Equal(t, int64(5), hybridHashReverse.(*Hybrid).threshold)
+	assert.Equal(t, uint64(5), hybridHashReverse.(*Hybrid).threshold)
 }
 
 // Ensure that the Vindex correctly maps ids to destinations

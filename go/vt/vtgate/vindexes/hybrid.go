@@ -27,8 +27,7 @@ import (
 )
 
 var (
-	_ SingleColumn = (*SqliteLookupUnique)(nil)
-	_ Lookup       = (*SqliteLookupUnique)(nil)
+	_ SingleColumn = (*Hybrid)(nil)
 )
 
 func init() {
@@ -41,14 +40,14 @@ type Hybrid struct {
 	name      string
 	vindexA   SingleColumn
 	vindexB   SingleColumn
-	threshold int64
+	threshold uint64
 }
 
 // NewHybrid creates a Hybrid vindex.
 // The supplied map has the following required fields:
 //   vindex_a: name of the first vindex
 //   vindex_b: name of the second vindex
-//   threshold: int value to compare to provided id
+//   threshold: unsigned int value to compare to provided id
 //       if id < threshold, use vindex a, otherwise, choose b
 //
 // The required fields from vindex a and vindex b should also be
@@ -57,7 +56,7 @@ func NewHybrid(name string, m map[string]string) (Vindex, error) {
 	h := &Hybrid{name: name}
 
 	var err error
-	h.threshold, err = strconv.ParseInt(m["threshold"], 0, 64)
+	h.threshold, err = strconv.ParseUint(m["threshold"], 0, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -106,28 +105,48 @@ func (h *Hybrid) NeedsVCursor() bool {
 func (h *Hybrid) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
 	out := make([]key.Destination, len(ids))
 	var err error
-	for i, id := range ids {
-		if !id.IsComparable() {
-			return nil, fmt.Errorf("Hybrid.Map: input id %v is not a comparable value", id)
-		}
-		val, err := id.ToInt64()
+
+	// Generate list of ids to send to each component vindex
+	var idsVindexA []sqltypes.Value
+	var idsVindexB []sqltypes.Value
+	for _, id := range ids {
+		// Check that type is valid
+		val, err := id.ToUint64()
 		if err != nil {
 			return nil, err
 		}
 		if val < h.threshold {
-			res, err := h.vindexA.Map(vcursor, []sqltypes.Value{id})
-			if err != nil {
-				return nil, err
-			}
-			out[i] = res[0]
+			idsVindexA = append(idsVindexA, id)
 		} else {
-			res, err := h.vindexB.Map(vcursor, []sqltypes.Value{id})
-			if err != nil {
-				return nil, err
-			}
-			out[i] = res[0]
+			idsVindexB = append(idsVindexB, id)
 		}
 	}
+
+	// Query component vindexes
+	vindexARes, err := h.vindexA.Map(vcursor, idsVindexA)
+	if err != nil {
+		return nil, err
+	}
+	vindexBRes, err := h.vindexB.Map(vcursor, idsVindexB)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build output by combining results
+	a, b := 0, 0
+	for i, id := range ids {
+		idString := id.ToString()
+		if len(idsVindexA) > a && idsVindexA[a].ToString() == idString {
+			out[i] = vindexARes[a]
+			a++
+		} else if len(idsVindexB) > b && idsVindexB[b].ToString() == idString {
+			out[i] = vindexBRes[b]
+			b++
+		} else {
+			return nil, fmt.Errorf("Hybrid.Map: no result found for input id %v", id)
+		}
+	}
+
 	return out, err
 }
 
@@ -135,30 +154,51 @@ func (h *Hybrid) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, 
 func (h *Hybrid) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 	out := make([]bool, len(ids))
 	var err error
+
+	// Generate list of ids to send to each component vindex
+	var idsVindexA []sqltypes.Value
+	var ksidsVindexA [][]byte
+	var idsVindexB []sqltypes.Value
+	var ksidsVindexB [][]byte
 	for i, id := range ids {
-		if !id.IsComparable() {
-			return nil, fmt.Errorf("Hybrid.Map: input id %v is not a comparable value", id)
-		}
-		val, err := id.ToInt64()
+		// Check that type is valid
+		val, err := id.ToUint64()
 		if err != nil {
 			return nil, err
 		}
 		if val < h.threshold {
-			res, err := h.vindexA.Verify(vcursor, []sqltypes.Value{id}, [][]byte{ksids[i]})
-			if err != nil {
-				return nil, err
-			}
-			out[i] = res[0]
+			idsVindexA = append(idsVindexA, id)
+			ksidsVindexA = append(ksidsVindexA, ksids[i])
 		} else {
-			res, err := h.vindexB.Verify(vcursor, []sqltypes.Value{id}, [][]byte{ksids[i]})
-			if err != nil {
-				return nil, err
-			}
-			out[i] = res[0]
+			idsVindexB = append(idsVindexB, id)
+			ksidsVindexB = append(ksidsVindexB, ksids[i])
 		}
 	}
+
+	// Query component vindexes
+	vindexARes, err := h.vindexA.Verify(vcursor, idsVindexA, ksidsVindexA)
 	if err != nil {
 		return nil, err
 	}
+	vindexBRes, err := h.vindexB.Verify(vcursor, idsVindexB, ksidsVindexB)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build output by combining results
+	a, b := 0, 0
+	for i, id := range ids {
+		idString := id.ToString()
+		if len(idsVindexA) > a && idsVindexA[a].ToString() == idString {
+			out[i] = vindexARes[a]
+			a++
+		} else if len(idsVindexB) > b && idsVindexB[b].ToString() == idString {
+			out[i] = vindexBRes[b]
+			b++
+		} else {
+			return nil, fmt.Errorf("Hybrid.Verify: no result found for input id %v", id)
+		}
+	}
+
 	return out, err
 }
