@@ -68,6 +68,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
+	// TODO test cache=shared
 	dbDSN := "file:" + m["path"] + "?cache=shared&mode=ro&_query_only=true&immutable=true"
 	db, err := sql.Open("sqlite3", dbDSN)
 	if err != nil {
@@ -151,6 +152,9 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 		}
 		resultMap[id] = ksid
 	}
+	if err = results.Err(); err != nil {
+		return nil, err
+	}
 
 	// Build output from result map
 	out := make([]key.Destination, 0, len(ids))
@@ -160,9 +164,6 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 		} else {
 			out = append(out, key.DestinationNone{})
 		}
-	}
-	if err = results.Err(); err != nil {
-		return nil, err
 	}
 
 	return out, err
@@ -206,6 +207,9 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 		}
 		resultMap[id] = ksid
 	}
+	if err = results.Err(); err != nil {
+		return nil, err
+	}
 
 	// Build output from result map
 	out := make([]bool, 0, len(ids))
@@ -215,9 +219,6 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 		} else {
 			out = append(out, ok)
 		}
-	}
-	if err = results.Err(); err != nil {
-		return nil, err
 	}
 
 	return out, err
