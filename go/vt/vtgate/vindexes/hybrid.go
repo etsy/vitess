@@ -29,7 +29,7 @@ var (
 )
 
 func init() {
-	Register("hybrid", NewHybrid)
+	Register("etsy_hybrid", NewHybrid)
 }
 
 // Hybrid defines a vindex consisting of two vindexes that are applied based on a

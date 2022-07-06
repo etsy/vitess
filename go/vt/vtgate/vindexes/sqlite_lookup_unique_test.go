@@ -31,7 +31,7 @@ import (
 func TestSqliteLookupUniqueInfo(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t)
 	assert.Equal(t, 5, sqliteLookupUnique.Cost())
-	assert.Equal(t, "sqlite_lookup_unique", sqliteLookupUnique.String())
+	assert.Equal(t, "etsy_sqlite_lookup_unique", sqliteLookupUnique.String())
 	assert.True(t, sqliteLookupUnique.IsUnique())
 	assert.False(t, sqliteLookupUnique.NeedsVCursor())
 }
@@ -115,7 +115,7 @@ func TestSqliteLookupUniqueUpdate(t *testing.T) {
 
 func createSqliteLookupUnique(t *testing.T) SingleColumn {
 	t.Helper()
-	l, err := CreateVindex("sqlite_lookup_unique", "sqlite_lookup_unique", map[string]string{
+	l, err := CreateVindex("etsy_sqlite_lookup_unique", "etsy_sqlite_lookup_unique", map[string]string{
 		"path":  "testdata/sqlite_vindex_test.db",
 		"table": "t",
 		"from":  "id",

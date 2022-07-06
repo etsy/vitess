@@ -36,7 +36,7 @@ var (
 )
 
 func init() {
-	Register("sqlite_lookup_unique", NewSqliteLookupUnique)
+	Register("etsy_sqlite_lookup_unique", NewSqliteLookupUnique)
 }
 
 // SqliteLookupUnique defines a vindex that uses a sqlite lookup table.
@@ -69,7 +69,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	// TODO test cache=shared
-	dbDSN := "file:" + m["path"] + "?cache=shared&mode=ro&_query_only=true&immutable=true"
+	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true"
 	db, err := sql.Open("sqlite3", dbDSN)
 	if err != nil {
 		return nil, err

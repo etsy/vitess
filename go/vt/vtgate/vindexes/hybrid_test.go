@@ -32,29 +32,29 @@ import (
 func TestHybridInfo(t *testing.T) {
 	hybridHashReverse := createHybrid("hash", "reverse_bits", 5, map[string]string{}, t)
 	assert.Equal(t, 1, hybridHashReverse.Cost())
-	assert.Equal(t, "hybrid", hybridHashReverse.String())
+	assert.Equal(t, "etsy_hybrid", hybridHashReverse.String())
 	assert.True(t, hybridHashReverse.IsUnique())
 	assert.Equal(t, "hash", hybridHashReverse.(*Hybrid).vindexA.String())
 	assert.Equal(t, "reverse_bits", hybridHashReverse.(*Hybrid).vindexB.String())
 	assert.Equal(t, uint64(5), hybridHashReverse.(*Hybrid).threshold)
 
-	hybridSqliteHash := createHybrid("sqlite_lookup_unique", "hash", 5, map[string]string{
+	hybridSqliteHash := createHybrid("etsy_sqlite_lookup_unique", "hash", 5, map[string]string{
 		"path":  "testdata/sqlite_vindex_test.db",
 		"table": "t",
 		"from":  "id",
 		"to":    "ksid",
 	}, t)
 	assert.Equal(t, 5, hybridSqliteHash.Cost())
-	assert.Equal(t, "hybrid", hybridSqliteHash.String())
+	assert.Equal(t, "etsy_hybrid", hybridSqliteHash.String())
 	assert.True(t, hybridSqliteHash.IsUnique())
-	assert.Equal(t, "sqlite_lookup_unique", hybridSqliteHash.(*Hybrid).vindexA.String())
+	assert.Equal(t, "etsy_sqlite_lookup_unique", hybridSqliteHash.(*Hybrid).vindexA.String())
 	assert.Equal(t, "hash", hybridSqliteHash.(*Hybrid).vindexB.String())
 	assert.Equal(t, uint64(5), hybridHashReverse.(*Hybrid).threshold)
 }
 
 // Ensure that the Vindex correctly maps ids to destinations
 func TestHybridMap(t *testing.T) {
-	hybridSqliteHash := createHybrid("sqlite_lookup_unique", "hash", 5, map[string]string{
+	hybridSqliteHash := createHybrid("etsy_sqlite_lookup_unique", "hash", 5, map[string]string{
 		"path":  "testdata/sqlite_vindex_test.db",
 		"table": "t",
 		"from":  "id",
@@ -70,13 +70,13 @@ func TestHybridMap(t *testing.T) {
 		key.DestinationKeyspaceID([]byte("\xf0\x98H\n\xc4ľq")),
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("SqliteLookupUnique.Map(): %+v, want %+v", got, want)
+		t.Errorf("Hybrid.Map(): %+v, want %+v", got, want)
 	}
 }
 
 // Ensure that the Vindex correctly verifies results
 func TestHybridVerify(t *testing.T) {
-	hybridSqliteHash := createHybrid("sqlite_lookup_unique", "hash", 5, map[string]string{
+	hybridSqliteHash := createHybrid("etsy_sqlite_lookup_unique", "hash", 5, map[string]string{
 		"path":  "testdata/sqlite_vindex_test.db",
 		"table": "t",
 		"from":  "id",
@@ -87,7 +87,7 @@ func TestHybridVerify(t *testing.T) {
 	got, err := hybridSqliteHash.Verify(nil, []sqltypes.Value{sqltypes.NewInt64(2), sqltypes.NewInt64(1), sqltypes.NewInt64(5), sqltypes.NewInt64(6)}, [][]byte{[]byte("incorrect"), []byte("10"), []byte("dne"), []byte("\xf0\x98H\n\xc4ľq")})
 	require.NoError(t, err)
 	want := []bool{false, true, false, true}
-	assert.Equalf(t, want, got, "SqliteLookupUnique.Verify(): %+v, want %+v", got, want)
+	assert.Equalf(t, want, got, "Hybrid.Verify(): %+v, want %+v", got, want)
 }
 
 func createHybrid(vindexA string, vindexB string, threshold int, options map[string]string, t *testing.T) SingleColumn {
@@ -96,7 +96,7 @@ func createHybrid(vindexA string, vindexB string, threshold int, options map[str
 	options["vindex_b"] = vindexB
 	options["threshold"] = strconv.Itoa(threshold)
 
-	l, err := CreateVindex("hybrid", "hybrid", options)
+	l, err := CreateVindex("etsy_hybrid", "etsy_hybrid", options)
 	if err != nil {
 		t.Fatal(err)
 	}
