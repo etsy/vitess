@@ -22,8 +22,6 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
-
-	_ "github.com/mattn/go-sqlite3" // sqlite driver
 )
 
 var (
@@ -107,19 +105,9 @@ func (h *Hybrid) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, 
 	var err error
 
 	// Generate list of ids to send to each component vindex
-	var idsVindexA []sqltypes.Value
-	var idsVindexB []sqltypes.Value
-	for _, id := range ids {
-		// Check that type is valid
-		val, err := id.ToUint64()
-		if err != nil {
-			return nil, err
-		}
-		if val < h.threshold {
-			idsVindexA = append(idsVindexA, id)
-		} else {
-			idsVindexB = append(idsVindexB, id)
-		}
+	idsVindexA, _, idsVindexB, _, err := separateByThreshold(ids, nil, h.threshold)
+	if err != nil {
+		return nil, err
 	}
 
 	// Query component vindexes
@@ -156,23 +144,9 @@ func (h *Hybrid) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) (
 	var err error
 
 	// Generate list of ids to send to each component vindex
-	var idsVindexA []sqltypes.Value
-	var ksidsVindexA [][]byte
-	var idsVindexB []sqltypes.Value
-	var ksidsVindexB [][]byte
-	for i, id := range ids {
-		// Check that type is valid
-		val, err := id.ToUint64()
-		if err != nil {
-			return nil, err
-		}
-		if val < h.threshold {
-			idsVindexA = append(idsVindexA, id)
-			ksidsVindexA = append(ksidsVindexA, ksids[i])
-		} else {
-			idsVindexB = append(idsVindexB, id)
-			ksidsVindexB = append(ksidsVindexB, ksids[i])
-		}
+	idsVindexA, ksidsVindexA, idsVindexB, ksidsVindexB, err := separateByThreshold(ids, ksids, h.threshold)
+	if err != nil {
+		return nil, err
 	}
 
 	// Query component vindexes
@@ -201,4 +175,32 @@ func (h *Hybrid) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) (
 	}
 
 	return out, err
+}
+
+func separateByThreshold(ids []sqltypes.Value, ksids [][]byte, threshold uint64) ([]sqltypes.Value, [][]byte, []sqltypes.Value, [][]byte, error) {
+	var idsA []sqltypes.Value
+	var ksidsA [][]byte
+	var idsB []sqltypes.Value
+	var ksidsB [][]byte
+
+	for i, id := range ids {
+		// Check that type is valid
+		val, err := id.ToUint64()
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		if val < threshold {
+			idsA = append(idsA, id)
+			if len(ksids) > 0 {
+				ksidsA = append(ksidsA, ksids[i])
+			}
+		} else {
+			idsB = append(idsB, id)
+			if len(ksids) > 0 {
+				ksidsB = append(ksidsB, ksids[i])
+			}
+		}
+	}
+
+	return idsA, ksidsA, idsB, ksidsB, nil
 }

@@ -116,43 +116,9 @@ func (slu *SqliteLookupUnique) NeedsVCursor() bool {
 // This mapping is used to determine which shard contains a row. If the id is absent from the vindex
 // lookup table, Map returns key.DestinationNone{}, which does not map to any shard.
 func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
-	// Query database
-	var query string
-	var results *sql.Rows
-	var err error
-	if len(ids) == 1 { // use prepared statement
-		results, err = slu.preparedSelect.Query(ids[0].ToString())
-		if err != nil {
-			return nil, err
-		}
-	} else { // do not use prepared statement
-		query = fmt.Sprintf("select %s, %s from %s where %s in (", slu.from, slu.to, slu.table, slu.from)
-		for _, id := range ids {
-			query += id.ToString() + ", "
-		}
-		query = strings.TrimSuffix(query, ", ")
-		query += ")"
-		results, err = slu.db.Query(query)
-		if err != nil {
-			return nil, err
-		}
-	}
-	defer func() {
-		err = results.Close()
-	}()
-
-	// Create map of id => ksid from results
-	resultMap := make(map[string][]byte, len(ids))
-	for results.Next() {
-		var id string
-		var ksid []byte
-		err = results.Scan(&id, &ksid)
-		if err != nil {
-			return nil, err
-		}
-		resultMap[id] = ksid
-	}
-	if err = results.Err(); err != nil {
+	// Query sqlite database and build result map
+	resultMap, err := slu.retrieveIDKsidMap(ids)
+	if err != nil {
 		return nil, err
 	}
 
@@ -171,7 +137,27 @@ func (slu *SqliteLookupUnique) Map(vcursor VCursor, ids []sqltypes.Value) ([]key
 
 // Verify returns true if ids maps to ksids.
 func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
-	// Query database
+	// Query sqlite database and build result map
+	resultMap, err := slu.retrieveIDKsidMap(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build output from result map
+	out := make([]bool, 0, len(ids))
+	for i, id := range ids {
+		if ksid, ok := resultMap[id.ToString()]; ok {
+			out = append(out, bytes.Equal(ksid, ksids[i]))
+		} else {
+			out = append(out, ok)
+		}
+	}
+
+	return out, err
+}
+
+func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (map[string][]byte, error) {
+	// Query sqlite database
 	var query string
 	var results *sql.Rows
 	var err error
@@ -211,17 +197,7 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 		return nil, err
 	}
 
-	// Build output from result map
-	out := make([]bool, 0, len(ids))
-	for i, id := range ids {
-		if ksid, ok := resultMap[id.ToString()]; ok {
-			out = append(out, bytes.Equal(ksid, ksids[i]))
-		} else {
-			out = append(out, ok)
-		}
-	}
-
-	return out, err
+	return resultMap, err
 }
 
 // Create reserves the id by inserting it into the vindex table.
