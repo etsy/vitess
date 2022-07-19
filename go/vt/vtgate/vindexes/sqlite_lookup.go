@@ -25,14 +25,24 @@ import (
 	"time"
 
 	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/stats"
 	"vitess.io/vitess/go/vt/key"
 
 	_ "github.com/mattn/go-sqlite3" // sqlite driver
 )
 
+const (
+	// Timing metric keys
+	connectTimingKey = "Connect"
+	queryTimingKey   = "Query"
+)
+
 var (
 	_ SingleColumn = (*SqliteLookupUnique)(nil)
 	_ Lookup       = (*SqliteLookupUnique)(nil)
+
+	// Metrics
+	timings = stats.NewTimings("SqliteLookupTimings", "Sqlite lookup timings", "operation")
 )
 
 func init() {
@@ -70,6 +80,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	// TODO test cache=shared
 	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true"
+	connectTime := time.Now()
 	db, err := sql.Open("sqlite3", dbDSN)
 	if err != nil {
 		return nil, err
@@ -81,6 +92,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 		db.SetConnMaxLifetime(time.Hour)
 	}
 	slu.db = db
+	timings.Record(connectTimingKey, connectTime)
 
 	stmt, err := slu.db.Prepare(fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from))
 	if err != nil {
@@ -161,6 +173,8 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (map[stri
 	var query string
 	var results *sql.Rows
 	var err error
+	queryStart := time.Now()
+
 	if len(ids) == 1 { // use prepared statement
 		results, err = slu.preparedSelect.Query(ids[0].ToString())
 		if err != nil {
@@ -196,6 +210,8 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (map[stri
 	if err = results.Err(); err != nil {
 		return nil, err
 	}
+
+	timings.Record(queryTimingKey, queryStart)
 
 	return resultMap, err
 }
