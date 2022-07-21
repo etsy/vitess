@@ -189,6 +189,8 @@ func Init() {
 		currentConfig.Consolidator = NotOnPrimary
 	case enableConsolidator:
 		currentConfig.Consolidator = Enable
+		currentConfig.ConsolidatorStreamTotalSize = 128 * 1024 * 1024
+		currentConfig.ConsolidatorStreamQuerySize = 2 * 1024 * 1024
 	default:
 		currentConfig.Consolidator = Disable
 	}
