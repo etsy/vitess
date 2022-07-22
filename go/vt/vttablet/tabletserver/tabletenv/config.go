@@ -158,7 +158,6 @@ func init() {
 	flagutil.DualFormatBoolVar(&enableConsolidatorReplicas, "enable_consolidator_replicas", false, "This option enables the query consolidator only on replicas.")
 	flag.Int64Var(&currentConfig.ConsolidatorStreamTotalSize, "consolidator_stream_total_size", 128*1024*1024, "This option can be used the maxMemoryTotal (in bytes) the consolidator will use in order to allow simultaneous queries to \"catch up\" to each other.")
 	flag.Int64Var(&currentConfig.ConsolidatorStreamQuerySize, "consolidator_stream_query_size", 2*1024*1024, "This option determines how much memory each individual stream will use as a history buffer to catch up.")
-
 	flagutil.DualFormatBoolVar(&currentConfig.CacheResultFields, "enable_query_plan_field_caching", defaultConfig.CacheResultFields, "This option fetches & caches fields (columns) when storing query plans")
 
 	flag.DurationVar(&healthCheckInterval, "health_check_interval", 20*time.Second, "Interval between health checks")
