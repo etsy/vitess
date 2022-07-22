@@ -156,7 +156,7 @@ func init() {
 	flag.BoolVar(&currentConfig.EnforceStrictTransTables, "enforce_strict_trans_tables", defaultConfig.EnforceStrictTransTables, "If true, vttablet requires MySQL to run with STRICT_TRANS_TABLES or STRICT_ALL_TABLES on. It is recommended to not turn this flag off. Otherwise MySQL may alter your supplied values before saving them to the database.")
 	flagutil.DualFormatBoolVar(&enableConsolidator, "enable_consolidator", true, "This option enables the query consolidator.")
 	flagutil.DualFormatBoolVar(&enableConsolidatorReplicas, "enable_consolidator_replicas", false, "This option enables the query consolidator only on replicas.")
-	flag.Int64Var(&currentConfig.ConsolidatorStreamTotalSize, "consolidator_stream_total_size", 0, "This option can be used the maxMemoryTotal (in bytes) the consolidator will use in order to allow simultaneous queries to \"catch up\" to each other.")
+	flag.Int64Var(&currentConfig.ConsolidatorStreamTotalSize, "consolidator_stream_total_size", 0, "This option can be used to set the total max memory (in bytes) the consolidator will use in order to allow simultaneous queries to \"catch up\" to each other.")
 	flag.Int64Var(&currentConfig.ConsolidatorStreamQuerySize, "consolidator_stream_query_size", 0, "This option determines how much memory each individual stream will use as a history buffer to catch up.")
 	flagutil.DualFormatBoolVar(&currentConfig.CacheResultFields, "enable_query_plan_field_caching", defaultConfig.CacheResultFields, "This option fetches & caches fields (columns) when storing query plans")
 
