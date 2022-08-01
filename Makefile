@@ -41,12 +41,6 @@ ifndef VTROOT
 export VTROOT=${PWD}
 endif
 
-# We now have CGO code in the build which throws warnings with newer gcc builds.
-# See: https://github.com/mattn/go-sqlite3/issues/803
-# Work around by dropping optimization level from default -O2.
-# Safe, since this code isn't performance critical.
-export CGO_CFLAGS := -O1
-
 # regenerate rice-box.go when any of the .cnf files change
 embed_config:
 	cd go/vt/mysqlctl
