@@ -28,7 +28,7 @@ import (
 	"vitess.io/vitess/go/stats"
 	"vitess.io/vitess/go/vt/key"
 
-	_ "github.com/mattn/go-sqlite3" // sqlite driver
+	sqlite3 "github.com/mattn/go-sqlite3" // sqlite driver
 )
 
 const (
@@ -47,6 +47,12 @@ var (
 
 func init() {
 	Register("etsy_sqlite_lookup_unique", NewSqliteLookupUnique)
+	sql.Register("sqlite3_mmap_size", &sqlite3.SQLiteDriver{
+		ConnectHook: func(c *sqlite3.SQLiteConn) error {
+			_, err := c.Exec("pragma mmap_size = 30000000000", nil)
+			return err
+		},
+	})
 }
 
 // SqliteLookupUnique defines a vindex that uses a sqlite lookup table.
@@ -79,9 +85,9 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	// TODO test cache=shared
-	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true&cache=shared&_mutex=no&_journal_mode=OFF"
+	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true"
 	connectTime := time.Now()
-	db, err := sql.Open("sqlite3", dbDSN)
+	db, err := sql.Open("sqlite3_mmap_size", dbDSN)
 	if err != nil {
 		return nil, err
 	}
