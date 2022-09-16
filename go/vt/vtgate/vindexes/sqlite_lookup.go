@@ -79,7 +79,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	// TODO test cache=shared
-	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true&_synchronous=off"
+	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true&_journal_mode=off"
 	connectTime := time.Now()
 	db, err := sql.Open("sqlite3", dbDSN)
 	if err != nil {
