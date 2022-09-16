@@ -85,7 +85,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	// TODO test cache=shared
-	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true&cache=shared&_mutex=no&_journal_mode=off&_synchronous=off"
+	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true"
 	connectTime := time.Now()
 	db, err := sql.Open("sqlite3_mmap_size", dbDSN)
 	if err != nil {
