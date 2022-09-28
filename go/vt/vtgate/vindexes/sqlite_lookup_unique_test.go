@@ -116,10 +116,11 @@ func TestSqliteLookupUniqueUpdate(t *testing.T) {
 func createSqliteLookupUnique(t *testing.T) SingleColumn {
 	t.Helper()
 	l, err := CreateVindex("etsy_sqlite_lookup_unique", "etsy_sqlite_lookup_unique", map[string]string{
-		"path":  "testdata/sqlite_vindex_test.db",
-		"table": "t",
-		"from":  "id",
-		"to":    "ksid",
+		"path":       "testdata/sqlite_vindex_test.db",
+		"table":      "t",
+		"from":       "id",
+		"to":         "ksid",
+		"cache_size": "100",
 	})
 	if err != nil {
 		t.Fatal(err)
