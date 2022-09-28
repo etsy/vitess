@@ -68,8 +68,11 @@ type SqliteLookupUnique struct {
 //   from: the column in the table that has the 'from' value of the lookup vindex.
 //   to: the 'to' column name of the table that contains the keyrange or keyspace id.
 //
-//   As writes cannot be distributed across all vtgate machines, and writes must obtain
-//   locks on the sqlite db, SQLite lookups are always read only
+// The following fields are optional:
+//   cache_size: changes the maximum number of disk pages sqlite holds in memory at once
+//
+// As writes cannot be distributed across all vtgate machines, and writes must obtain
+// locks on the sqlite db, SQLite lookups are always read only
 func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	slu := &SqliteLookupUnique{name: name}
 	slu.table = m["table"]
