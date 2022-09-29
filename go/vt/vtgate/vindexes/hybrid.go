@@ -59,12 +59,12 @@ func NewHybrid(name string, m map[string]string) (Vindex, error) {
 		return nil, err
 	}
 
-	vindexA, err := CreateVindex(m["vindex_a"], m["vindex_a"], m)
+	vindexA, err := CreateVindex(m["vindex_a"], name+"_a_"+m["vindex_a"], m)
 	if err != nil {
 		return nil, err
 	}
 	h.vindexA = vindexA.(SingleColumn)
-	vindexB, err := CreateVindex(m["vindex_b"], m["vindex_b"], m)
+	vindexB, err := CreateVindex(m["vindex_b"], name+"_b_"+m["vindex_b"], m)
 	if err != nil {
 		return nil, err
 	}
@@ -122,12 +122,14 @@ func (h *Hybrid) Map(vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, 
 
 	// Build output by combining results
 	a, b := 0, 0
+	lenIdsVindexA := len(idsVindexA)
+	lenIdsVindexB := len(idsVindexB)
 	for i, id := range ids {
 		idString := id.ToString()
-		if len(idsVindexA) > a && idsVindexA[a].ToString() == idString {
+		if lenIdsVindexA > a && idsVindexA[a].ToString() == idString {
 			out[i] = vindexARes[a]
 			a++
-		} else if len(idsVindexB) > b && idsVindexB[b].ToString() == idString {
+		} else if lenIdsVindexB > b && idsVindexB[b].ToString() == idString {
 			out[i] = vindexBRes[b]
 			b++
 		} else {

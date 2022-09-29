@@ -61,6 +61,19 @@ func TestSqliteLookupUniqueMap(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("SqliteLookupUnique.Map(): %+v, want %+v", got, want)
 	}
+
+	// List of ids with duplicate
+	got, err = sqliteLookupUnique.Map(nil, []sqltypes.Value{sqltypes.NewInt64(2), sqltypes.NewInt64(3), sqltypes.NewInt64(1), sqltypes.NewInt64(2)})
+	require.NoError(t, err)
+	want = []key.Destination{
+		key.DestinationKeyspaceID([]byte("11")),
+		key.DestinationNone{},
+		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("11")),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("SqliteLookupUnique.Map(): %+v, want %+v", got, want)
+	}
 }
 
 // Ensure that the Vindex correctly verifies results
@@ -77,6 +90,12 @@ func TestSqliteLookupUniqueVerify(t *testing.T) {
 	got, err = sqlitelookupunique.Verify(nil, []sqltypes.Value{sqltypes.NewInt64(2), sqltypes.NewInt64(1), sqltypes.NewInt64(3)}, [][]byte{[]byte("invalid"), []byte("10"), []byte("dne")})
 	require.NoError(t, err)
 	want = []bool{false, true, false}
+	assert.Equalf(t, want, got, "SqliteLookupUnique.Verify(): %+v, want %+v", got, want)
+
+	// List of ids with duplicate
+	got, err = sqlitelookupunique.Verify(nil, []sqltypes.Value{sqltypes.NewInt64(2), sqltypes.NewInt64(1), sqltypes.NewInt64(3), sqltypes.NewInt64(1)}, [][]byte{[]byte("invalid"), []byte("10"), []byte("dne"), []byte("10")})
+	require.NoError(t, err)
+	want = []bool{false, true, false, true}
 	assert.Equalf(t, want, got, "SqliteLookupUnique.Verify(): %+v, want %+v", got, want)
 }
 

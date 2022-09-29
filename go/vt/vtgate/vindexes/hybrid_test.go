@@ -34,8 +34,8 @@ func TestHybridInfo(t *testing.T) {
 	assert.Equal(t, 1, hybridHashReverse.Cost())
 	assert.Equal(t, "etsy_hybrid", hybridHashReverse.String())
 	assert.True(t, hybridHashReverse.IsUnique())
-	assert.Equal(t, "hash", hybridHashReverse.(*Hybrid).vindexA.String())
-	assert.Equal(t, "reverse_bits", hybridHashReverse.(*Hybrid).vindexB.String())
+	assert.Equal(t, "etsy_hybrid_a_hash", hybridHashReverse.(*Hybrid).vindexA.String())
+	assert.Equal(t, "etsy_hybrid_b_reverse_bits", hybridHashReverse.(*Hybrid).vindexB.String())
 	assert.Equal(t, uint64(5), hybridHashReverse.(*Hybrid).threshold)
 
 	hybridSqliteHash := createHybrid("etsy_sqlite_lookup_unique", "hash", 5, map[string]string{
@@ -47,8 +47,8 @@ func TestHybridInfo(t *testing.T) {
 	assert.Equal(t, 5, hybridSqliteHash.Cost())
 	assert.Equal(t, "etsy_hybrid", hybridSqliteHash.String())
 	assert.True(t, hybridSqliteHash.IsUnique())
-	assert.Equal(t, "etsy_sqlite_lookup_unique", hybridSqliteHash.(*Hybrid).vindexA.String())
-	assert.Equal(t, "hash", hybridSqliteHash.(*Hybrid).vindexB.String())
+	assert.Equal(t, "etsy_hybrid_a_etsy_sqlite_lookup_unique", hybridSqliteHash.(*Hybrid).vindexA.String())
+	assert.Equal(t, "etsy_hybrid_b_hash", hybridSqliteHash.(*Hybrid).vindexB.String())
 	assert.Equal(t, uint64(5), hybridHashReverse.(*Hybrid).threshold)
 }
 

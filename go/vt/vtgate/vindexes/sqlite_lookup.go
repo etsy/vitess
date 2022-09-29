@@ -173,11 +173,10 @@ func (slu *SqliteLookupUnique) Verify(vcursor VCursor, ids []sqltypes.Value, ksi
 	return out, err
 }
 
-func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (map[string][]byte, error) {
+func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMap map[string][]byte, err error) {
 	// Query sqlite database
 	var query string
 	var results *sql.Rows
-	var err error
 	queryStart := time.Now()
 
 	if len(ids) == 1 { // use prepared statement
@@ -202,7 +201,7 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (map[stri
 	}()
 
 	// Create map of id => ksid from results
-	resultMap := make(map[string][]byte, len(ids))
+	resultMap = make(map[string][]byte, len(ids))
 	for results.Next() {
 		var id string
 		var ksid []byte
