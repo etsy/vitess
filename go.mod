@@ -101,6 +101,7 @@ require (
 	github.com/hashicorp/go-version v1.7.0
 	github.com/kr/pretty v0.3.1
 	github.com/kr/text v0.2.0
+	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/spf13/afero v1.11.0
