@@ -55,9 +55,11 @@ func init() {
 type SqliteLookupUnique struct {
 	name           string
 	db             *sql.DB
+	path           string
 	table          string
 	from           string
 	to             string
+	cacheSize      string
 	preparedSelect *sql.Stmt
 }
 
@@ -75,20 +77,28 @@ type SqliteLookupUnique struct {
 // locks on the sqlite db, SQLite lookups are always read only
 func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	slu := &SqliteLookupUnique{name: name}
+	slu.path = m["path"]
 	slu.table = m["table"]
 	slu.from = m["from"]
 	slu.to = m["to"]
+	if cacheSize, ok := m["cache_size"]; ok {
+		slu.cacheSize = cacheSize
+	}
 
+	return slu, nil
+}
+
+func (slu *SqliteLookupUnique) initSqliteDb() error {
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
-	dbDSN := "file:" + m["path"] + "?mode=ro&_query_only=true&immutable=true"
-	if cacheSize, ok := m["cache_size"]; ok {
-		dbDSN += "&_cache_size=" + cacheSize
+	dbDSN := "file:" + slu.path + "?mode=ro&_query_only=true&immutable=true"
+	if len(slu.cacheSize) > 0 {
+		dbDSN += "&_cache_size=" + slu.cacheSize
 	}
 	connectTime := time.Now()
 	db, err := sql.Open("sqlite3", dbDSN)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if db != nil {
 		db.SetMaxOpenConns(0) // no maximum
@@ -101,11 +111,11 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 
 	stmt, err := slu.db.Prepare(fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	slu.preparedSelect = stmt
 
-	return slu, nil
+	return nil
 }
 
 // String returns the name of the vindex.
@@ -178,6 +188,13 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	var query string
 	var results *sql.Rows
 	queryStart := time.Now()
+
+	if slu.db == nil {
+		err = slu.initSqliteDb()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if len(ids) == 1 { // use prepared statement
 		results, err = slu.preparedSelect.Query(ids[0].ToString())
