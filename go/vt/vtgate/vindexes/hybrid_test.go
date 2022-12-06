@@ -62,11 +62,21 @@ func TestHybridMap(t *testing.T) {
 	}, t)
 
 	// List of ids
-	got, err := hybridSqliteHash.Map(nil, []sqltypes.Value{sqltypes.NewInt64(3), sqltypes.NewInt64(1), sqltypes.NewInt64(6)})
+	got, err := hybridSqliteHash.Map(nil, []sqltypes.Value{
+		sqltypes.NewInt64(3),
+		sqltypes.NewVarChar("3"),
+		sqltypes.NewInt64(1),
+		sqltypes.NewVarChar("1"),
+		sqltypes.NewInt64(6),
+		sqltypes.NewVarChar("6"),
+	})
 	require.NoError(t, err)
 	want := []key.Destination{
 		key.DestinationNone{},
+		key.DestinationNone{},
 		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("\xf0\x98H\n\xc4ľq")),
 		key.DestinationKeyspaceID([]byte("\xf0\x98H\n\xc4ľq")),
 	}
 	if !reflect.DeepEqual(got, want) {

@@ -187,7 +187,8 @@ func separateByThreshold(ids []sqltypes.Value, ksids [][]byte, threshold uint64)
 
 	for i, id := range ids {
 		// Check that type is valid
-		val, err := id.ToUint64()
+		str := id.ToString()
+		val, err := strconv.ParseUint(str, 10, 64)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
