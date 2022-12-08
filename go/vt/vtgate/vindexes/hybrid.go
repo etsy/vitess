@@ -22,6 +22,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	"vitess.io/vitess/go/vt/vtgate/evalengine"
 )
 
 var (
@@ -187,8 +188,7 @@ func separateByThreshold(ids []sqltypes.Value, ksids [][]byte, threshold uint64)
 
 	for i, id := range ids {
 		// Check that type is valid
-		str := id.ToString()
-		val, err := strconv.ParseUint(str, 10, 64)
+		val, err := evalengine.ToUint64(id)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}

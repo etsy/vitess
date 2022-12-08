@@ -66,9 +66,9 @@ func TestHybridMap(t *testing.T) {
 		sqltypes.NewInt64(3),
 		sqltypes.NewVarChar("3"),
 		sqltypes.NewInt64(1),
-		sqltypes.NewVarChar("1"),
+		sqltypes.NewVarBinary("1"),
 		sqltypes.NewInt64(6),
-		sqltypes.NewVarChar("6"),
+		sqltypes.NewVarBinary("6"),
 	})
 	require.NoError(t, err)
 	want := []key.Destination{
