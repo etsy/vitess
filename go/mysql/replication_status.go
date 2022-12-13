@@ -18,7 +18,6 @@ package mysql
 
 import (
 	"fmt"
-
 	replicationdatapb "vitess.io/vitess/go/vt/proto/replicationdata"
 	"vitess.io/vitess/go/vt/vterrors"
 )
@@ -34,6 +33,8 @@ type ReplicationStatus struct {
 	FilePosition          Position
 	FileRelayLogPosition  Position
 	SourceServerID        uint
+	LastIOErrorno         string
+	IOThreadConnecting    bool
 	IOThreadRunning       bool
 	SQLThreadRunning      bool
 	ReplicationLagSeconds uint
@@ -47,6 +48,12 @@ type ReplicationStatus struct {
 // running.
 func (s *ReplicationStatus) ReplicationRunning() bool {
 	return s.IOThreadRunning && s.SQLThreadRunning
+}
+
+// IOUnhealthy is used by the heartbeat reader to determine whether the connection to the source has failed
+// and the last IO error is non-empty (in cases where the primary is unavailable this error code would be 2003)
+func (s *ReplicationStatus) IOUnhealthy() bool {
+	return s.IOThreadConnecting && s.LastIOErrorno != ""
 }
 
 // ReplicationStatusToProto translates a Status to proto3.

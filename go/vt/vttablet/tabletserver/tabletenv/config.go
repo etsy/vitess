@@ -76,6 +76,7 @@ var (
 	enableConsolidator           bool
 	enableConsolidatorReplicas   bool
 	enableHeartbeat              bool
+	heartbeatAllowOnIOError      bool
 	heartbeatInterval            time.Duration
 	healthCheckInterval          time.Duration
 	degradedThreshold            time.Duration
@@ -153,6 +154,8 @@ func init() {
 
 	flag.BoolVar(&enableHeartbeat, "heartbeat_enable", false, "If true, vttablet records (if master) or checks (if replica) the current time of a replication heartbeat in the table _vt.heartbeat. The result is used to inform the serving state of the vttablet via healthchecks.")
 	flag.DurationVar(&heartbeatInterval, "heartbeat_interval", 1*time.Second, "How frequently to read and write replication heartbeat.")
+	flag.BoolVar(&heartbeatAllowOnIOError, "heartbeat_allow_on_io_error", false, "If the replication IO thread is unable to connect to the source, allow replica to be used for query serving (even if the replication lag exceeds the unhealthy threshold)")
+
 	flagutil.DualFormatBoolVar(&currentConfig.EnableLagThrottler, "enable_lag_throttler", defaultConfig.EnableLagThrottler, "If true, vttablet will run a throttler service, and will implicitly enable heartbeats")
 
 	flag.BoolVar(&currentConfig.EnforceStrictTransTables, "enforce_strict_trans_tables", defaultConfig.EnforceStrictTransTables, "If true, vttablet requires MySQL to run with STRICT_TRANS_TABLES or STRICT_ALL_TABLES on. It is recommended to not turn this flag off. Otherwise MySQL may alter your supplied values before saving them to the database.")
@@ -204,6 +207,7 @@ func Init() {
 		heartbeatInterval = time.Second
 	}
 	currentConfig.ReplicationTracker.HeartbeatIntervalSeconds.Set(heartbeatInterval)
+	currentConfig.ReplicationTracker.HeartbeatAllowOnIOError = heartbeatAllowOnIOError
 
 	switch {
 	case enableHeartbeat:
@@ -338,6 +342,7 @@ type ReplicationTrackerConfig struct {
 	// Mode can be disable, polling or heartbeat. Default is disable.
 	Mode                     string  `json:"mode,omitempty"`
 	HeartbeatIntervalSeconds Seconds `json:"heartbeatIntervalSeconds,omitempty"`
+	HeartbeatAllowOnIOError  bool    `json:"heartbeatAllowOnIOError,omitempty"`
 }
 
 // TransactionLimitConfig captures configuration of transaction pool slots

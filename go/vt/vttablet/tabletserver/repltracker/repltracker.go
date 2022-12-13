@@ -75,7 +75,7 @@ func NewReplTracker(env tabletenv.Env, alias *topodatapb.TabletAlias) *ReplTrack
 // InitDBConfig initializes the target name.
 func (rt *ReplTracker) InitDBConfig(target *querypb.Target, mysqld mysqlctl.MysqlDaemon) {
 	rt.hw.InitDBConfig(target)
-	rt.hr.InitDBConfig(target)
+	rt.hr.InitDBConfig(target, mysqld)
 	rt.poller.InitDBConfig(mysqld)
 }
 

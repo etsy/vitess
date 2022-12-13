@@ -31,6 +31,7 @@ import (
 	"vitess.io/vitess/go/timer"
 	"vitess.io/vitess/go/vt/log"
 	"vitess.io/vitess/go/vt/logutil"
+	"vitess.io/vitess/go/vt/mysqlctl"
 	"vitess.io/vitess/go/vt/sqlparser"
 	"vitess.io/vitess/go/vt/vttablet/tabletserver/connpool"
 	"vitess.io/vitess/go/vt/vttablet/tabletserver/tabletenv"
@@ -49,6 +50,8 @@ const (
 // table against the current time at read time.
 type heartbeatReader struct {
 	env tabletenv.Env
+
+	mysqld mysqlctl.MysqlDaemon
 
 	enabled       bool
 	interval      time.Duration
@@ -89,8 +92,9 @@ func newHeartbeatReader(env tabletenv.Env) *heartbeatReader {
 }
 
 // InitDBConfig initializes the target name for the heartbeatReader.
-func (r *heartbeatReader) InitDBConfig(target *querypb.Target) {
+func (r *heartbeatReader) InitDBConfig(target *querypb.Target, mysqld mysqlctl.MysqlDaemon) {
 	r.keyspaceShard = fmt.Sprintf("%s:%s", target.Keyspace, target.Shard)
+	r.mysqld = mysqld
 }
 
 // Open starts the heartbeat ticker and opens the db pool.
@@ -133,6 +137,21 @@ func (r *heartbeatReader) Status() (time.Duration, error) {
 	if r.lastKnownError != nil {
 		return 0, r.lastKnownError
 	}
+	// if the lag exceeds the unhealthy_threshold, we ensure that this isn't due to the primary being unavailable.. i.e.
+	// if the IO thread is in a `Connecting` state AND the `LastIOErrno` is non-empty (usually error number 2003 in this case).
+	if r.env.Config().ReplicationTracker.HeartbeatAllowOnIOError && r.lastKnownLag > r.env.Config().Healthcheck.UnhealthyThresholdSeconds.Get() {
+
+		status, err := r.mysqld.ReplicationStatus()
+		if err != nil {
+			return r.lastKnownLag, nil
+		}
+		// IO thread is unhealthy, and we have exceeded the replication lag threshold. Since this means that the primary
+		// database is likely unavailable we assume that the replica is caught up to the primary.
+		if status.IOUnhealthy() {
+			return 0, nil
+		}
+	}
+
 	return r.lastKnownLag, nil
 }
 

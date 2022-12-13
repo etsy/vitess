@@ -308,8 +308,10 @@ func parseReplicationStatus(fields map[string]string) ReplicationStatus {
 	status := ReplicationStatus{
 		SourceHost: fields["Master_Host"],
 		// These fields are returned from the underlying DB and cannot be renamed
-		IOThreadRunning:  fields["Slave_IO_Running"] == "Yes" || fields["Slave_IO_Running"] == "Connecting",
-		SQLThreadRunning: fields["Slave_SQL_Running"] == "Yes",
+		IOThreadRunning:    fields["Slave_IO_Running"] == "Yes" || fields["Slave_IO_Running"] == "Connecting",
+		IOThreadConnecting: fields["Slave_IO_Running"] == "Connecting",
+		LastIOErrorno:      fields["Last_IO_Errno"],
+		SQLThreadRunning:   fields["Slave_SQL_Running"] == "Yes",
 	}
 	parseInt, _ := strconv.ParseInt(fields["Master_Port"], 10, 0)
 	status.SourcePort = int(parseInt)
