@@ -51,9 +51,9 @@ func (s *ReplicationStatus) ReplicationRunning() bool {
 }
 
 // IOUnhealthy is used by the heartbeat reader to determine whether the connection to the source has failed
-// and the last IO error is non-empty (in cases where the primary is unavailable this error code would be 2003)
+// and the last IO error is 2003 (in cases where the primary is unavailable this error code would be 2003)
 func (s *ReplicationStatus) IOUnhealthy() bool {
-	return s.IOThreadConnecting && s.LastIOErrorno != ""
+	return s.IOThreadConnecting && s.LastIOErrorno == "2003"
 }
 
 // ReplicationStatusToProto translates a Status to proto3.
