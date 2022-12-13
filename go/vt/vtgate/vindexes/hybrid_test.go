@@ -82,6 +82,17 @@ func TestHybridMap(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Hybrid.Map(): %+v, want %+v", got, want)
 	}
+
+	// Test that negative ids fail to map to a ksid
+	_, err = hybridSqliteHash.Map(nil, []sqltypes.Value{
+		sqltypes.NewInt64(-13),
+	})
+	require.Error(t, err)
+
+	_, err = hybridSqliteHash.Map(nil, []sqltypes.Value{
+		sqltypes.NewVarBinary("-13"),
+	})
+	require.Error(t, err)
 }
 
 // Ensure that the Vindex correctly verifies results
