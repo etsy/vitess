@@ -62,16 +62,37 @@ func TestHybridMap(t *testing.T) {
 	}, t)
 
 	// List of ids
-	got, err := hybridSqliteHash.Map(nil, []sqltypes.Value{sqltypes.NewInt64(3), sqltypes.NewInt64(1), sqltypes.NewInt64(6)})
+	got, err := hybridSqliteHash.Map(nil, []sqltypes.Value{
+		sqltypes.NewInt64(3),
+		sqltypes.NewVarChar("3"),
+		sqltypes.NewInt64(1),
+		sqltypes.NewVarBinary("1"),
+		sqltypes.NewInt64(6),
+		sqltypes.NewVarBinary("6"),
+	})
 	require.NoError(t, err)
 	want := []key.Destination{
 		key.DestinationNone{},
+		key.DestinationNone{},
 		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("\xf0\x98H\n\xc4ľq")),
 		key.DestinationKeyspaceID([]byte("\xf0\x98H\n\xc4ľq")),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Hybrid.Map(): %+v, want %+v", got, want)
 	}
+
+	// Test that negative ids fail to map to a ksid
+	_, err = hybridSqliteHash.Map(nil, []sqltypes.Value{
+		sqltypes.NewInt64(-13),
+	})
+	require.Error(t, err)
+
+	_, err = hybridSqliteHash.Map(nil, []sqltypes.Value{
+		sqltypes.NewVarBinary("-13"),
+	})
+	require.Error(t, err)
 }
 
 // Ensure that the Vindex correctly verifies results
