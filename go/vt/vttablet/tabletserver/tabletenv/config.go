@@ -131,6 +131,7 @@ func registerTabletEnvFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&currentConfig.TableACLExemptACL, "queryserver-config-acl-exempt-acl", defaultConfig.TableACLExemptACL, "an acl that exempt from table acl checking (this acl is free to access any vitess tables).")
 	fs.BoolVar(&currentConfig.TerseErrors, "queryserver-config-terse-errors", defaultConfig.TerseErrors, "prevent bind vars from escaping in client error messages")
 	fs.BoolVar(&currentConfig.AnnotateQueries, "queryserver-config-annotate-queries", defaultConfig.AnnotateQueries, "prefix queries to MySQL backend with comment indicating vtgate principal (user) and target tablet type")
+	fs.IntVar(&currentConfig.TruncateErrorLen, "queryserver-config-truncate-error-len", defaultConfig.TruncateErrorLen, "truncate errors if they are above this value (0 means do not truncate)")
 	fs.BoolVar(&currentConfig.WatchReplication, "watch_replication_stream", false, "When enabled, vttablet will stream the MySQL replication stream from the local server, and use it to update schema when it sees a DDL.")
 	fs.BoolVar(&currentConfig.TrackSchemaVersions, "track_schema_versions", false, "When enabled, vttablet will store versions of schemas at each position that a DDL is applied and allow retrieval of the schema corresponding to a position")
 	fs.BoolVar(&currentConfig.TwoPCEnable, "twopc_enable", defaultConfig.TwoPCEnable, "if the flag is on, 2pc is enabled. Other 2pc flags must be supplied.")
@@ -291,6 +292,7 @@ type TabletConfig struct {
 	TrackSchemaVersions                     bool    `json:"trackSchemaVersions,omitempty"`
 	TerseErrors                             bool    `json:"terseErrors,omitempty"`
 	AnnotateQueries                         bool    `json:"annotateQueries,omitempty"`
+	TruncateErrorLen                        int     `json:"truncateErrorLen,omitempty"`
 	MessagePostponeParallelism              int     `json:"messagePostponeParallelism,omitempty"`
 	DeprecatedCacheResultFields             bool    `json:"cacheResultFields,omitempty"`
 	SignalWhenSchemaChange                  bool    `json:"signalWhenSchemaChange,omitempty"`
