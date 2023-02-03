@@ -272,7 +272,7 @@ install_all() {
   # zk
   zk_ver=${ZK_VERSION:-3.8.0}
   if [ "$BUILD_JAVA" == 1 ] ; then
-    install_dep "Zookeeper" "$zk_ver" "$VTROOT/dist" install_zookeeper
+    install_dep "Zookeeper" "$zk_ver" "$VTROOT/dist/zookeeper" install_zookeeper
   fi
 
   # etcd
