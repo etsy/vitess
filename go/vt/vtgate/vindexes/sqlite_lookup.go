@@ -41,7 +41,7 @@ const (
 var (
 	_ SingleColumn = (*SqliteLookupUnique)(nil)
 	_ Lookup       = (*SqliteLookupUnique)(nil)
-
+        initSqliteDbMutex sync.RWMutex
 	// Metrics
 	timings = stats.NewTimings("SqliteLookupTimings", "Sqlite lookup timings", "operation")
 )
@@ -92,6 +92,8 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 }
 
 func (slu *SqliteLookupUnique) initSqliteDb() error {
+	initSqliteDbMutex.RLock()
+	defer initSqliteDbMutex.RUnlock()
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	dbDSN := "file:" + slu.path + "?mode=ro&_query_only=true&immutable=true"
