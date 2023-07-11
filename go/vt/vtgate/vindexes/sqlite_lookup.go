@@ -93,8 +93,6 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 }
 
 func (slu *SqliteLookupUnique) initSqliteDb() error {
-	preparedSelectMux.Lock()
-	defer preparedSelectMux.Unlock()
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	dbDSN := "file:" + slu.path + "?mode=ro&_query_only=true&immutable=true"
