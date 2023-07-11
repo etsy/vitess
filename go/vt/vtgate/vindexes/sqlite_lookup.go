@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -39,9 +40,9 @@ const (
 )
 
 var (
-	initSqliteDbMutex sync.Mutex
-	_ SingleColumn = (*SqliteLookupUnique)(nil)
-	_ Lookup       = (*SqliteLookupUnique)(nil)
+	preparedSelectMux sync.Mutex
+	_                 SingleColumn = (*SqliteLookupUnique)(nil)
+	_                 Lookup       = (*SqliteLookupUnique)(nil)
 	// Metrics
 	timings = stats.NewTimings("SqliteLookupTimings", "Sqlite lookup timings", "operation")
 )
@@ -92,8 +93,8 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 }
 
 func (slu *SqliteLookupUnique) initSqliteDb() error {
-	initSqliteDbMutex.Lock()
-	defer initSqliteDbMutex.Unlock()
+	preparedSelectMux.Lock()
+	defer preparedSelectMux.Unlock()
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	dbDSN := "file:" + slu.path + "?mode=ro&_query_only=true&immutable=true"
@@ -114,6 +115,8 @@ func (slu *SqliteLookupUnique) initSqliteDb() error {
 	slu.db = db
 	timings.Record(connectTimingKey, connectTime)
 
+	preparedSelectMux.Lock()
+	defer preparedSelectMux.Unlock()
 	stmt, err := slu.db.Prepare(fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from))
 	if err != nil {
 		return err
@@ -188,6 +191,12 @@ func (slu *SqliteLookupUnique) Verify(ctx context.Context, vcursor VCursor, ids 
 	return out, err
 }
 
+func (slu *SqliteLookupUnique) protectedPreparedSelectQuery(ids []sqltypes.Value) (*sql.Rows, error) {
+	preparedSelectMux.Lock()
+	defer preparedSelectMux.Unlock()
+	return slu.preparedSelect.Query(ids[0].ToString())
+}
+
 func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMap map[string][]byte, err error) {
 	// Query sqlite database
 	var query string
@@ -202,7 +211,7 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	}
 
 	if len(ids) == 1 { // use prepared statement
-		results, err = slu.preparedSelect.Query(ids[0].ToString())
+		results, err = slu.protectedPreparedSelectQuery(ids)
 		if err != nil {
 			return nil, err
 		}
