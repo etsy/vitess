@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	preparedSelectMux sync.Mutex
+	preparedSelectMux sync.RWMutex
 	_                 SingleColumn = (*SqliteLookupUnique)(nil)
 	_                 Lookup       = (*SqliteLookupUnique)(nil)
 	// Metrics
@@ -113,8 +113,6 @@ func (slu *SqliteLookupUnique) initSqliteDb() error {
 	slu.db = db
 	timings.Record(connectTimingKey, connectTime)
 
-	preparedSelectMux.Lock()
-	defer preparedSelectMux.Unlock()
 	stmt, err := slu.db.Prepare(fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from))
 	if err != nil {
 		return err
@@ -190,8 +188,7 @@ func (slu *SqliteLookupUnique) Verify(ctx context.Context, vcursor VCursor, ids 
 }
 
 func (slu *SqliteLookupUnique) protectedPreparedSelectQuery(ids []sqltypes.Value) (*sql.Rows, error) {
-	preparedSelectMux.Lock()
-	defer preparedSelectMux.Unlock()
+
 	return slu.preparedSelect.Query(ids[0].ToString())
 }
 
@@ -202,7 +199,11 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	queryStart := time.Now()
 
 	if slu.db == nil {
-		err = slu.initSqliteDb()
+		preparedSelectMux.Lock()
+		if slu.db == nil {
+			err = slu.initSqliteDb()
+		}
+		preparedSelectMux.Unlock()
 		if err != nil {
 			return nil, err
 		}
