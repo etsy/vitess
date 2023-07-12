@@ -22,7 +22,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/atomic"
 	"strings"
 	"sync"
 	"time"
@@ -56,16 +55,15 @@ func init() {
 // The table is expected to define the id column as unique. It's
 // Unique and a Lookup.
 type SqliteLookupUnique struct {
-	name              string
-	db                *sql.DB
-	path              string
-	table             string
-	from              string
-	to                string
-	cacheSize         string
-	preparedSelect    *sql.Stmt
-	initFinished      atomic.Bool
-	initSqliteDbMutex sync.RWMutex
+	name           string
+	db             *sql.DB
+	path           string
+	table          string
+	from           string
+	to             string
+	cacheSize      string
+	preparedSelect *sql.Stmt
+	once           sync.Once
 }
 
 // NewSqliteLookupUnique creates a SqliteLookupUnique vindex.
@@ -96,11 +94,6 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 }
 
 func (slu *SqliteLookupUnique) initSqliteDb() error {
-	slu.initSqliteDbMutex.Lock()
-	defer slu.initSqliteDbMutex.Unlock()
-	if slu.initFinished.Load() == true {
-		return nil // another thread raced and already finished initializing the DB
-	}
 	var err error
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	dbDSN := "file:" + slu.path + "?mode=ro&_query_only=true&immutable=true"
@@ -126,7 +119,6 @@ func (slu *SqliteLookupUnique) initSqliteDb() error {
 		return err
 	}
 	slu.preparedSelect = stmt
-	slu.initFinished.Store(true)
 	return nil
 }
 
@@ -201,12 +193,13 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	var results *sql.Rows
 	queryStart := time.Now()
 
-	if slu.initFinished.Load() == false {
+	slu.once.Do(func() {
 		err = slu.initSqliteDb()
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-	}
+	},
+	)
 
 	if len(ids) == 1 { // use prepared statement
 		results, err = slu.preparedSelect.Query(ids[0].ToString())
