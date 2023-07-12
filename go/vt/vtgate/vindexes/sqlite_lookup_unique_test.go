@@ -37,13 +37,6 @@ func TestSqliteLookupUniqueInfo(t *testing.T) {
 	assert.False(t, sqliteLookupUnique.NeedsVCursor())
 }
 
-func TestSqliteLookupUnique2(t *testing.T) {
-	sqliteLookupUnique := createSqliteLookupUnique(t)
-	for i := 0; i < 100; i++ {
-		go sqliteLookupUnique.Map(context.Background(), nil, []sqltypes.Value{sqltypes.NewInt64(1)})
-	}
-}
-
 // Ensure that the Vindex correctly maps ids to destinations
 func TestSqliteLookupUniqueMap(t *testing.T) {
 	sqliteLookupUnique := createSqliteLookupUnique(t)

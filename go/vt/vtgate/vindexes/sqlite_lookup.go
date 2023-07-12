@@ -40,9 +40,9 @@ const (
 )
 
 var (
-	preparedSelectMux sync.RWMutex
-	_                 SingleColumn = (*SqliteLookupUnique)(nil)
-	_                 Lookup       = (*SqliteLookupUnique)(nil)
+	_ SingleColumn = (*SqliteLookupUnique)(nil)
+	_ Lookup       = (*SqliteLookupUnique)(nil)
+
 	// Metrics
 	timings = stats.NewTimings("SqliteLookupTimings", "Sqlite lookup timings", "operation")
 )
@@ -55,14 +55,16 @@ func init() {
 // The table is expected to define the id column as unique. It's
 // Unique and a Lookup.
 type SqliteLookupUnique struct {
-	name           string
-	db             *sql.DB
-	path           string
-	table          string
-	from           string
-	to             string
-	cacheSize      string
-	preparedSelect *sql.Stmt
+	name              string
+	db                *sql.DB
+	path              string
+	table             string
+	from              string
+	to                string
+	cacheSize         string
+	preparedSelect    *sql.Stmt
+	preparedSelectMux sync.RWMutex
+	dbMux             sync.RWMutex
 }
 
 // NewSqliteLookupUnique creates a SqliteLookupUnique vindex.
@@ -92,8 +94,18 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 	return slu, nil
 }
 
-func (slu *SqliteLookupUnique) initSqliteDb() error {
-	var err error
+func (slu *SqliteLookupUnique) isDbInit() bool {
+	slu.dbMux.RLock()
+	defer slu.dbMux.RUnlock()
+	return slu.db != nil
+}
+
+func (slu *SqliteLookupUnique) protectedLazyInitDb() error {
+	if slu.isDbInit() {
+		return nil
+	}
+	slu.dbMux.Lock()
+	defer slu.dbMux.Unlock()
 	// Options defined here: https://github.com/mattn/go-sqlite3#connection-string
 	dbDSN := "file:" + slu.path + "?mode=ro&_query_only=true&immutable=true"
 	if len(slu.cacheSize) > 0 {
@@ -112,13 +124,36 @@ func (slu *SqliteLookupUnique) initSqliteDb() error {
 	}
 	slu.db = db
 	timings.Record(connectTimingKey, connectTime)
+	return nil
+}
 
+func (slu *SqliteLookupUnique) isPreparedSelectInit() bool {
+	slu.preparedSelectMux.RLock()
+	defer slu.preparedSelectMux.RUnlock()
+	return slu.preparedSelect != nil
+}
+
+func (slu *SqliteLookupUnique) protectedLazyInitPreparedSelect() error {
+	if slu.isPreparedSelectInit() {
+		return nil
+	}
+	slu.preparedSelectMux.Lock()
+	defer slu.preparedSelectMux.Unlock()
 	stmt, err := slu.db.Prepare(fmt.Sprintf("select %s, %s from %s where %s = ?", slu.from, slu.to, slu.table, slu.from))
 	if err != nil {
 		return err
 	}
 	slu.preparedSelect = stmt
+	return err
+}
 
+func (slu *SqliteLookupUnique) lazyInitSqliteDb() error {
+	if err := slu.protectedLazyInitDb(); err != nil {
+		return err
+	}
+	if err := slu.protectedLazyInitPreparedSelect(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -188,8 +223,15 @@ func (slu *SqliteLookupUnique) Verify(ctx context.Context, vcursor VCursor, ids 
 }
 
 func (slu *SqliteLookupUnique) protectedPreparedSelectQuery(ids []sqltypes.Value) (*sql.Rows, error) {
-
+	slu.preparedSelectMux.RLock()
+	defer slu.preparedSelectMux.RUnlock()
 	return slu.preparedSelect.Query(ids[0].ToString())
+}
+
+func (slu *SqliteLookupUnique) protectedDBQuery(query string) (*sql.Rows, error) {
+	slu.dbMux.RLock()
+	defer slu.dbMux.RUnlock()
+	return slu.db.Query(query)
 }
 
 func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMap map[string][]byte, err error) {
@@ -198,15 +240,8 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	var results *sql.Rows
 	queryStart := time.Now()
 
-	if slu.db == nil {
-		preparedSelectMux.Lock()
-		if slu.db == nil {
-			err = slu.initSqliteDb()
-		}
-		preparedSelectMux.Unlock()
-		if err != nil {
-			return nil, err
-		}
+	if err = slu.lazyInitSqliteDb(); err != nil {
+		return nil, err
 	}
 
 	if len(ids) == 1 { // use prepared statement
@@ -221,7 +256,7 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 		}
 		query = strings.TrimSuffix(query, ", ")
 		query += ")"
-		results, err = slu.db.Query(query)
+		results, err = slu.protectedDBQuery(query)
 		if err != nil {
 			return nil, err
 		}
