@@ -119,6 +119,7 @@ func (slu *SqliteLookupUnique) initSqliteDb() error {
 		return err
 	}
 	slu.preparedSelect = stmt
+
 	return nil
 }
 
