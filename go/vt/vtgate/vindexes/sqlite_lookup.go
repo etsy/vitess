@@ -44,6 +44,7 @@ var (
 
 	// Metrics
 	timings = stats.NewTimings("SqliteLookupTimings", "Sqlite lookup timings", "operation")
+	counter = stats.NewCountersWithSingleLabel("SqliteLookupCounter", "Sqlite lookup counts by table", "table")
 )
 
 func init() {
@@ -236,6 +237,7 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	}
 
 	timings.Record(queryTimingKey, queryStart)
+	counter.Add(slu.table, 1)
 
 	return resultMap, err
 }
