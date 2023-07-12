@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/atomic"
 	"strings"
 	"sync"
 	"time"
@@ -63,7 +64,7 @@ type SqliteLookupUnique struct {
 	to                string
 	cacheSize         string
 	preparedSelect    *sql.Stmt
-	initFinished      bool
+	initFinished      atomic.Bool
 	initSqliteDbMutex sync.RWMutex
 }
 
@@ -97,7 +98,7 @@ func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
 func (slu *SqliteLookupUnique) initSqliteDb() error {
 	slu.initSqliteDbMutex.Lock()
 	defer slu.initSqliteDbMutex.Unlock()
-	if slu.initFinished == true {
+	if slu.initFinished.Load() == true {
 		return nil // another thread raced and already finished initializing the DB
 	}
 	var err error
@@ -125,7 +126,7 @@ func (slu *SqliteLookupUnique) initSqliteDb() error {
 		return err
 	}
 	slu.preparedSelect = stmt
-	slu.initFinished = true
+	slu.initFinished.Store(true)
 	return nil
 }
 
@@ -200,7 +201,7 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	var results *sql.Rows
 	queryStart := time.Now()
 
-	if slu.initFinished == false {
+	if slu.initFinished.Load() == false {
 		err = slu.initSqliteDb()
 		if err != nil {
 			return nil, err
