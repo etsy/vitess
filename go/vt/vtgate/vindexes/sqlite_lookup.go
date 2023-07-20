@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -62,6 +63,7 @@ type SqliteLookupUnique struct {
 	to             string
 	cacheSize      string
 	preparedSelect *sql.Stmt
+	once           sync.Once
 }
 
 // NewSqliteLookupUnique creates a SqliteLookupUnique vindex.
@@ -192,12 +194,13 @@ func (slu *SqliteLookupUnique) retrieveIDKsidMap(ids []sqltypes.Value) (resultMa
 	var results *sql.Rows
 	queryStart := time.Now()
 
-	if slu.db == nil {
+	slu.once.Do(func() {
 		err = slu.initSqliteDb()
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-	}
+	},
+	)
 
 	if len(ids) == 1 { // use prepared statement
 		results, err = slu.preparedSelect.Query(ids[0].ToString())
