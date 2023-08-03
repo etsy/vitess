@@ -127,16 +127,15 @@ install_zookeeper() {
   local version="$1"
   local dist="$2"
   zk="zookeeper-$version"
-  vtzk="vt-zookeeper-$version"
   # This is how we'd download directly from source:
   # wget "https://dlcdn.apache.org/zookeeper/$zk/apache-$zk.tar.gz"
   $VTROOT/tools/wget-retry "${VITESS_RESOURCES_DOWNLOAD_URL}/apache-${zk}.tar.gz"
-  tar -xzf "$dist/apache-$zk.tar.gz"
-  mv $dist/apache-$zk $dist/$vtzk
-  mvn -f $dist/$vtzk/zookeeper-contrib/zookeeper-contrib-fatjar/pom.xml clean install -P fatjar -DskipTests
-  mkdir -p $dist/$vtzk/lib
-  cp "$dist/$vtzk/zookeeper-contrib/zookeeper-contrib-fatjar/target/$zk-fatjar.jar" "$dist/$vtzk/lib/$zk-fatjar.jar"
-  rm -rf "$zk.tar.gz"
+  # Note we are already pushd'd into "$dist" by install_dep
+  tar --strip-components=1 -xzf "apache-${zk}.tar.gz"
+  mvn -f zookeeper-contrib/zookeeper-contrib-fatjar/pom.xml clean install -P fatjar -DskipTests
+  mkdir -vp lib
+  cp -v "zookeeper-contrib/zookeeper-contrib-fatjar/target/$zk-fatjar.jar" "lib/$zk-fatjar.jar"
+  rm -f "apache-$zk.tar.gz"
 }
 
 
