@@ -16,6 +16,11 @@ limitations under the License.
 
 package vindexes
 
+import (
+	"os"
+	"encoding/json"
+)
+
 var (
 	_ MultiColumn = (*Dynamic)(nil)
 )
@@ -28,7 +33,10 @@ func init() {
 }
 
 // VindexMap stores a mapping of vindex id to vindex
-type VindexMap map[uint64]Vindex
+type VindexMap map[uint64]Hybrid
+
+// vindex definition in vschema
+type VindexRef map[string]string
 
 // defines a vindex that dynamically selects
 // the vindex specified by a column value
@@ -38,12 +46,29 @@ type Dynamic struct {
 }
 
 // create a new Dynamic vindex instance
-// based on the properties specified in the input map
 func NewDynamic(name string, params map[string]string) (Vindex, error) {
-	vindexMap := make([uint64]Vindex, 0, len(params["vindex_map"]))
+	vmPath := params["vindex_map_path"]
+	vmap := make(map[uint64]VindexRef)
 
-	for id, vindexName := range params["vindex_map"] {
-		v, err := CreateVindex(vindexName, name+"_"+vindexName, params)
+	data, err := os.ReadFile(vmPath)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("Loaded vindex map from: %s", vmPath)
+
+	err = json.Unmarshal(data, &vmap)
+	if err != nil {
+		return nil, err
+	}
+
+	// because we can't access the registered vindexes here,
+	// we have to create all the candidate vindexes
+	// and attach them to this vindex instance
+	for id, vindexDef := range vmap {
+		vParams := vindexDef["params"]
+		vType := vindexDef["type"]
+		v, err := CreateVindex(vType, name+"_"+id+"_"+vType, vParams)
 
 		if err != nil {
 			return nil, err
@@ -65,21 +90,37 @@ func (d *Dynamic) String() string {
 
 // Cost returns the cost of this vindex as the larger of its two component vindex costs.
 func (d *Dynamic) Cost() int {
+	maxCost := 0
 
-	// optimization: create set of unique vindexes to loop through?
-	for id, vindex := range d.vindexMap {
-
+	for _, vindex := range d.vindexMap {
+		if vindex.Cost() > maxCost {
+			maxCost = vindex.Cost()
+		}
 	}
+
+	return maxCost
 }
 
-// IsUnique returns whether both of its component vindexes are unique.
+// IsUnique returns whether all of its candidate vindexes are unique.
 func (d *Dynamic) IsUnique() bool {
-	return h.vindexA.IsUnique() && h.vindexB.IsUnique()
+	isUnique := true
+
+	for _, vindex := range d.vindexMap {
+		isUnique = isUnique && vindex.IsUnique()
+	}
+
+	return isUnique
 }
 
-// NeedsVCursor returns whether either of its component vindexes needs to execute queries to VTTablet.
+// NeedsVCursor returns whether any of its component vindexes needs to execute queries to VTTablet.
 func (d *Dynamic) NeedsVCursor() bool {
-	return h.vindexA.NeedsVCursor() || h.vindexB.NeedsVCursor()
+	needsVCursor := false
+
+	for _, vindex := range d.vindexMap {
+		needsVCursor = needsVCursor || vindex.NeedsVCursor()
+	}
+
+	return needsVCursor
 }
 
 func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
@@ -91,12 +132,12 @@ func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sq
 			continue
 		}
 
-		typeId := colValues[0]
-		shardifier := colValues[1]
+		shardifierTypeId := colValues[0]
+		shardifierValue := make([]sqltypes.Value, colValues[1])
 
-		vindex := d.vindexMap[typeId]
+		vindex := d.vindexMap[shardifierTypeId]
 
-		res, err := vindex.Map(ctx, vcursor, shardifier)
+		res, err := vindex.Map(ctx, vcursor, shardifierValue)
 		if err != nil {
 			return nil, err
 		}
@@ -105,4 +146,24 @@ func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sq
 	}
 
 	return destinations, err
+}
+
+// Verify returns true for every id that successfully maps to the
+// specified keyspace id.
+func (d *Dynamic) Verify(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value, ksids [][]byte) ([]bool, error) {
+	result := make([]bool, len(rowsColValues))
+	destinations, _ := rv.Map(ctx, vcursor, rowsColValues)
+	for i, dest := range destinations {
+		destksid, ok := dest.(key.DestinationKeyspaceID)
+		if !ok {
+			continue
+		}
+		result[i] = bytes.Equal([]byte(destksid), ksids[i])
+	}
+	return result, nil
+}
+
+// PartialVindex returns true if subset of columns can be passed in to the vindex Map and Verify function.
+func (d *Dynamic) PartialVindex() bool {
+	return false
 }
