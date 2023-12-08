@@ -17,8 +17,15 @@ limitations under the License.
 package vindexes
 
 import (
-	"os"
+	"context"
 	"encoding/json"
+	"os"
+	"strconv"
+
+	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/key"
+	"vitess.io/vitess/go/vt/log"
+	"vitess.io/vitess/go/vt/vtgate/evalengine"
 )
 
 var (
@@ -32,54 +39,66 @@ func init() {
 	Register("etsy_dynamic", NewDynamic)
 }
 
-// VindexMap stores a mapping of vindex id to vindex
-type VindexMap map[uint64]Hybrid
+// vindex definition from vschema
+type VindexDef struct {
+	Params map[string]string `json:"params"`
+	Type   string            `json:"type"`
+}
 
-// vindex definition in vschema
-type VindexRef map[string]string
+// a mapping of vindex id to vindex
+type VindexMap map[uint64]SingleColumn
 
 // defines a vindex that dynamically selects
 // the vindex specified by a column value
 type Dynamic struct {
-	name      	string
-	vindexMap	VindexMap
+	name      string
+	vindexMap VindexMap
 }
 
 // create a new Dynamic vindex instance
 func NewDynamic(name string, params map[string]string) (Vindex, error) {
 	vmPath := params["vindex_map_path"]
-	vmap := make(map[uint64]VindexRef)
 
 	data, err := os.ReadFile(vmPath)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Loaded vindex map from: %s", vmPath)
+	log.Infof("[Dynamic Vindex] Loaded file: %s", vmPath)
 
-	err = json.Unmarshal(data, &vmap)
+	vDefs := make(map[uint64]VindexDef)
+	err = json.Unmarshal(data, &vDefs)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Infof("[Dynamic Vindex] Parsed vindex map from: %s", vmPath)
+
 	// because we can't access the registered vindexes here,
 	// we have to create all the candidate vindexes
 	// and attach them to this vindex instance
-	for id, vindexDef := range vmap {
-		vParams := vindexDef["params"]
-		vType := vindexDef["type"]
-		v, err := CreateVindex(vType, name+"_"+id+"_"+vType, vParams)
+	vMap := make(VindexMap)
+
+	for id, vindexDef := range vDefs {
+		vname := name + "_" + strconv.FormatUint(id, 10) + "_" + vindexDef.Type
+		v, err := CreateVindex(vindexDef.Type, vname, vindexDef.Params)
 
 		if err != nil {
 			return nil, err
 		}
 
-		vindexMap[id] = v
+		vindex, ok := v.(SingleColumn)
+
+		if ok == false {
+			return nil, err
+		}
+
+		vMap[id] = vindex
 	}
 
 	return &Dynamic{
-		name: name,
-		vindexMap: vindexMap,
+		name:      name,
+		vindexMap: vMap,
 	}, nil
 }
 
@@ -126,44 +145,63 @@ func (d *Dynamic) NeedsVCursor() bool {
 func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
 	destinations := make([]key.Destination, 0, len(rowsColValues))
 
+	// TODO: figure out if it would be more performant
+	// to call Map on each id
+	// OR call Map on each group of ids of the same vindex
+	// (ditto with Verify())
 	for _, colValues := range rowsColValues {
 		if len(colValues) != 2 {
 			destinations = append(destinations, key.DestinationNone{})
 			continue
 		}
 
-		shardifierTypeId := colValues[0]
-		shardifierValue := make([]sqltypes.Value, colValues[1])
-
-		vindex := d.vindexMap[shardifierTypeId]
-
-		res, err := vindex.Map(ctx, vcursor, shardifierValue)
+		vindexId, err := evalengine.ToUint64(colValues[0])
 		if err != nil {
 			return nil, err
 		}
 
-		destinations = append(destinations, res)
+		vindex := d.vindexMap[vindexId]
+
+		// put the id sqltypes.Value in an array
+		id := []sqltypes.Value{colValues[1]}
+		res, err := vindex.Map(ctx, vcursor, id)
+		if err != nil {
+			return nil, err
+		}
+
+		destinations = append(destinations, res[0])
 	}
 
-	return destinations, err
+	return destinations, nil
 }
 
 // Verify returns true for every id that successfully maps to the
 // specified keyspace id.
 func (d *Dynamic) Verify(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value, ksids [][]byte) ([]bool, error) {
-	result := make([]bool, len(rowsColValues))
-	destinations, _ := rv.Map(ctx, vcursor, rowsColValues)
-	for i, dest := range destinations {
-		destksid, ok := dest.(key.DestinationKeyspaceID)
-		if !ok {
-			continue
+	out := make([]bool, 0, len(rowsColValues))
+
+	for idx, colValues := range rowsColValues {
+		vindexId, err := evalengine.ToUint64(colValues[0])
+		if err != nil {
+			return nil, err
 		}
-		result[i] = bytes.Equal([]byte(destksid), ksids[i])
+
+		vindex := d.vindexMap[vindexId]
+
+		id := []sqltypes.Value{colValues[1]}
+		ksid := [][]byte{ksids[idx]}
+		res, err := vindex.Verify(ctx, vcursor, id, ksid)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, res[0])
 	}
-	return result, nil
+
+	return out, nil
 }
 
-// PartialVindex returns true if subset of columns can be passed in to the vindex Map and Verify function.
+// PartialVindex returns true if subset of columns
+// can be passed in to the vindex Map and Verify function.
 func (d *Dynamic) PartialVindex() bool {
 	return false
 }
