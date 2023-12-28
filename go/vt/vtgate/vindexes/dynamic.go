@@ -19,13 +19,16 @@ package vindexes
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
-	"strconv"
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	"vitess.io/vitess/go/vt/log"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
+
+	jsref "github.com/lestrrat-go/jsref"
+	"github.com/lestrrat-go/jsref/provider"
 )
 
 var (
@@ -39,14 +42,8 @@ func init() {
 	Register("etsy_dynamic", NewDynamic)
 }
 
-// vindex definition from vschema
-type VindexDef struct {
-	Params map[string]string `json:"params"`
-	Type   string            `json:"type"`
-}
-
 // a mapping of vindex id to vindex
-type VindexMap map[uint64]SingleColumn
+type VindexMap map[string]SingleColumn
 
 // defines a vindex that dynamically selects
 // the vindex specified by a column value
@@ -57,37 +54,54 @@ type Dynamic struct {
 
 // create a new Dynamic vindex instance
 func NewDynamic(name string, params map[string]string) (Vindex, error) {
+	// In order to access to the registered vindexes here, we have to either:
+	//
+	// A) pass the instantiated vschema object to CreateVindex call in vschema.buildTables(),
+	// then access the registered vindexes via vschema.FindVindex()
+	// (See go/vt/vtgate/vindexes/vschema.go#L250)
+	// B) create all the candidate vindexes and attach them to this vindex instance
+	//
+	// Let's try option B
+
+	// First, load the vschema file into memory
+	vschemaPath := "./vschema_test.json"
+	vschema := make(map[string]any)
+	ParseFile(vschemaPath, &vschema)
+
+	// Set the vschema as the external reference
+	mp := provider.NewMap()
+	mp.Set(vschemaPath, vschema)
+	jsResolver := jsref.New()
+	jsResolver.AddProvider(mp)
+
+	// Read the vindex map file
 	vmPath := params["vindex_map_path"]
+	vDefs := make(map[string]any)
+	ParseFile(vmPath, &vDefs)
 
-	data, err := os.ReadFile(vmPath)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("[Dynamic Vindex] Loaded file: %s", vmPath)
-
-	vDefs := make(map[uint64]VindexDef)
-	err = json.Unmarshal(data, &vDefs)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("[Dynamic Vindex] Parsed vindex map from: %s", vmPath)
-
-	// because we can't access the registered vindexes here,
-	// we have to create all the candidate vindexes
-	// and attach them to this vindex instance
 	vMap := make(VindexMap)
 
-	for id, vindexDef := range vDefs {
-		vname := name + "_" + strconv.FormatUint(id, 10) + "_" + vindexDef.Type
-		v, err := CreateVindex(vindexDef.Type, vname, vindexDef.Params)
+	for id, _ := range vDefs {
+		// resolve vindex definitions using json external references
+		ptr := fmt.Sprintf("#/%s", id)
+		result, err := jsResolver.Resolve(vDefs, ptr)
+
+		if err != nil {
+			fmt.Printf("[Dynamic Vindex] json ref resolution err: %s\n", err)
+			continue
+		}
+
+		vparams := result.(map[string]any)["params"].(map[string]string)
+		vtype := result.(map[string]any)["type"].(string)
+
+		vname := name + "_" + id + "_" + vtype
+		vindex, err := CreateVindex(vtype, vname, vparams)
 
 		if err != nil {
 			return nil, err
 		}
 
-		vindex, ok := v.(SingleColumn)
+		vindex, ok := vindex.(SingleColumn)
 
 		if ok == false {
 			return nil, err
@@ -100,6 +114,17 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 		name:      name,
 		vindexMap: vMap,
 	}, nil
+}
+
+func ParseFile(filepath string, format *map[string]any) {
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		fmt.Printf("[Dynamic Vindex] file loading error\n")
+	}
+
+	if err := json.Unmarshal(data, &format); err != nil {
+		fmt.Printf("[Dynamic Vindex] json unmarshalling error:\n%s\n", err)
+	}
 }
 
 // String returns the name of the vindex.
@@ -168,6 +193,8 @@ func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sq
 		if err != nil {
 			return nil, err
 		}
+
+		log.Infof("[Dynamic Vindex] vindex %s Map() ran successfully", vindex.String())
 
 		destinations = append(destinations, res[0])
 	}
