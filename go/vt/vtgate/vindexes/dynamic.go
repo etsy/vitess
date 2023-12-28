@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
@@ -43,7 +44,7 @@ func init() {
 }
 
 // a mapping of vindex id to vindex
-type VindexMap map[string]SingleColumn
+type VindexMap map[uint64]SingleColumn
 
 // defines a vindex that dynamically selects
 // the vindex specified by a column value
@@ -77,7 +78,10 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 	// Read the vindex map file
 	vmPath := params["vindex_map_path"]
 	vDefs := make(map[string]any)
-	ParseFile(vmPath, &vDefs)
+
+	if err := ParseFile(vmPath, &vDefs); err != nil {
+		return nil, err
+	}
 
 	vMap := make(VindexMap)
 
@@ -87,8 +91,7 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 		result, err := jsResolver.Resolve(vDefs, ptr)
 
 		if err != nil {
-			fmt.Printf("[Dynamic Vindex] json ref resolution err: %s\n", err)
-			continue
+			return nil, err
 		}
 
 		vparams := result.(map[string]any)["params"].(map[string]string)
@@ -101,13 +104,13 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 			return nil, err
 		}
 
-		vindex, ok := vindex.(SingleColumn)
+		id, err := strconv.ParseUint(id, 10, 64)
 
-		if ok == false {
+		if err != nil {
 			return nil, err
 		}
 
-		vMap[id] = vindex
+		vMap[id] = vindex.(SingleColumn)
 	}
 
 	return &Dynamic{
@@ -116,15 +119,19 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 	}, nil
 }
 
-func ParseFile(filepath string, format *map[string]any) {
+func ParseFile(filepath string, output *map[string]any) error {
 	data, err := os.ReadFile(filepath)
 	if err != nil {
 		fmt.Printf("[Dynamic Vindex] file loading error\n")
+		return err
 	}
 
-	if err := json.Unmarshal(data, &format); err != nil {
+	if err := json.Unmarshal(data, &output); err != nil {
 		fmt.Printf("[Dynamic Vindex] json unmarshalling error:\n%s\n", err)
+		return err
 	}
+
+	return nil
 }
 
 // String returns the name of the vindex.
@@ -180,12 +187,14 @@ func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sq
 			continue
 		}
 
-		vindexId, err := evalengine.ToUint64(colValues[0])
+		vid, err := evalengine.ToUint64(colValues[0])
+
 		if err != nil {
-			return nil, err
+			fmt.Printf("[Dynamic Vindex] sqltype.Value to uint64 conversion err: %s\n", err)
+			continue
 		}
 
-		vindex := d.vindexMap[vindexId]
+		vindex := d.vindexMap[vid]
 
 		// put the id sqltypes.Value in an array
 		id := []sqltypes.Value{colValues[1]}
@@ -208,13 +217,14 @@ func (d *Dynamic) Verify(ctx context.Context, vcursor VCursor, rowsColValues [][
 	out := make([]bool, 0, len(rowsColValues))
 
 	for idx, colValues := range rowsColValues {
-		vindexId, err := evalengine.ToUint64(colValues[0])
+		vid, err := evalengine.ToUint64(colValues[0])
+
 		if err != nil {
-			return nil, err
+			fmt.Printf("[Dynamic Vindex] sqltype.Value to uint64 conversion err: %s\n", err)
+			continue
 		}
 
-		vindex := d.vindexMap[vindexId]
-
+		vindex := d.vindexMap[vid]
 		id := []sqltypes.Value{colValues[1]}
 		ksid := [][]byte{ksids[idx]}
 		res, err := vindex.Verify(ctx, vcursor, id, ksid)
