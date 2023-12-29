@@ -33,14 +33,14 @@ import (
 )
 
 var (
-	_ MultiColumn = (*Dynamic)(nil)
+	_ MultiColumn = (*MultiSharded)(nil)
 )
 
 // Register the new vindex type
 // New vindexes under this type will be created
 // using the provided callback
 func init() {
-	Register("etsy_dynamic", NewDynamic)
+	Register("etsy_multisharded", NewMultiSharded)
 }
 
 // a mapping of vindex id to vindex
@@ -48,23 +48,16 @@ type VindexMap map[uint64]SingleColumn
 
 // defines a vindex that dynamically selects
 // the vindex specified by a column value
-type Dynamic struct {
+type MultiSharded struct {
 	name      string
 	vindexMap VindexMap
 }
 
-// create a new Dynamic vindex instance
-func NewDynamic(name string, params map[string]string) (Vindex, error) {
-	// In order to access to the registered vindexes here, we have to either:
-	//
-	// A) pass the instantiated vschema object to CreateVindex call in vschema.buildTables(),
-	// then access the registered vindexes via vschema.FindVindex()
-	// (See go/vt/vtgate/vindexes/vschema.go#L250)
-	// B) create all the candidate vindexes and attach them to this vindex instance
-	//
-	// Let's try option B
-
+// create a new vindex instance
+func NewMultiSharded(name string, params map[string]string) (Vindex, error) {
+	// Create all the candidate vindexes and attach them to this vindex instance
 	// First, load the vschema file into memory
+
 	vschemaPath := "./vschema_test.json"
 	vschema := make(map[string]any)
 	ParseFile(vschemaPath, &vschema)
@@ -89,7 +82,6 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 		// resolve vindex definitions using json external references
 		ptr := fmt.Sprintf("#/%s", id)
 		result, err := jsResolver.Resolve(vDefs, ptr)
-
 		if err != nil {
 			return nil, err
 		}
@@ -99,13 +91,11 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 
 		vname := name + "_" + id + "_" + vtype
 		vindex, err := CreateVindex(vtype, vname, vparams)
-
 		if err != nil {
 			return nil, err
 		}
 
 		id, err := strconv.ParseUint(id, 10, 64)
-
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +103,7 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 		vMap[id] = vindex.(SingleColumn)
 	}
 
-	return &Dynamic{
+	return &MultiSharded{
 		name:      name,
 		vindexMap: vMap,
 	}, nil
@@ -122,12 +112,12 @@ func NewDynamic(name string, params map[string]string) (Vindex, error) {
 func ParseFile(filepath string, output *map[string]any) error {
 	data, err := os.ReadFile(filepath)
 	if err != nil {
-		fmt.Printf("[Dynamic Vindex] file loading error\n")
+		fmt.Printf("file loading error\n")
 		return err
 	}
 
 	if err := json.Unmarshal(data, &output); err != nil {
-		fmt.Printf("[Dynamic Vindex] json unmarshalling error:\n%s\n", err)
+		fmt.Printf("json unmarshalling error:\n%s\n", err)
 		return err
 	}
 
@@ -135,15 +125,15 @@ func ParseFile(filepath string, output *map[string]any) error {
 }
 
 // String returns the name of the vindex.
-func (d *Dynamic) String() string {
-	return d.name
+func (m *MultiSharded) String() string {
+	return m.name
 }
 
-// Cost returns the cost of this vindex as the larger of its two component vindex costs.
-func (d *Dynamic) Cost() int {
+// Cost returns the maximum cost of all its candidate vindexes.
+func (m *MultiSharded) Cost() int {
 	maxCost := 0
 
-	for _, vindex := range d.vindexMap {
+	for _, vindex := range m.vindexMap {
 		if vindex.Cost() > maxCost {
 			maxCost = vindex.Cost()
 		}
@@ -153,28 +143,28 @@ func (d *Dynamic) Cost() int {
 }
 
 // IsUnique returns whether all of its candidate vindexes are unique.
-func (d *Dynamic) IsUnique() bool {
+func (m *MultiSharded) IsUnique() bool {
 	isUnique := true
 
-	for _, vindex := range d.vindexMap {
+	for _, vindex := range m.vindexMap {
 		isUnique = isUnique && vindex.IsUnique()
 	}
 
 	return isUnique
 }
 
-// NeedsVCursor returns whether any of its component vindexes needs to execute queries to VTTablet.
-func (d *Dynamic) NeedsVCursor() bool {
+// NeedsVCursor returns whether any of its candidate vindexes needs to execute queries to VTTablet.
+func (m *MultiSharded) NeedsVCursor() bool {
 	needsVCursor := false
 
-	for _, vindex := range d.vindexMap {
+	for _, vindex := range m.vindexMap {
 		needsVCursor = needsVCursor || vindex.NeedsVCursor()
 	}
 
 	return needsVCursor
 }
 
-func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
+func (m *MultiSharded) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
 	destinations := make([]key.Destination, 0, len(rowsColValues))
 
 	// TODO: figure out if it would be more performant
@@ -188,13 +178,11 @@ func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sq
 		}
 
 		vid, err := evalengine.ToUint64(colValues[0])
-
 		if err != nil {
-			fmt.Printf("[Dynamic Vindex] sqltype.Value to uint64 conversion err: %s\n", err)
-			continue
+			return nil, err
 		}
 
-		vindex := d.vindexMap[vid]
+		vindex := m.vindexMap[vid]
 
 		// put the id sqltypes.Value in an array
 		id := []sqltypes.Value{colValues[1]}
@@ -213,24 +201,24 @@ func (d *Dynamic) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sq
 
 // Verify returns true for every id that successfully maps to the
 // specified keyspace id.
-func (d *Dynamic) Verify(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value, ksids [][]byte) ([]bool, error) {
+func (m *MultiSharded) Verify(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value, ksids [][]byte) ([]bool, error) {
 	out := make([]bool, 0, len(rowsColValues))
 
 	for idx, colValues := range rowsColValues {
 		vid, err := evalengine.ToUint64(colValues[0])
-
 		if err != nil {
-			fmt.Printf("[Dynamic Vindex] sqltype.Value to uint64 conversion err: %s\n", err)
-			continue
+			return nil, err
 		}
 
-		vindex := d.vindexMap[vid]
+		vindex := m.vindexMap[vid]
 		id := []sqltypes.Value{colValues[1]}
 		ksid := [][]byte{ksids[idx]}
+
 		res, err := vindex.Verify(ctx, vcursor, id, ksid)
 		if err != nil {
 			return nil, err
 		}
+
 		out = append(out, res[0])
 	}
 
@@ -239,6 +227,6 @@ func (d *Dynamic) Verify(ctx context.Context, vcursor VCursor, rowsColValues [][
 
 // PartialVindex returns true if subset of columns
 // can be passed in to the vindex Map and Verify function.
-func (d *Dynamic) PartialVindex() bool {
+func (m *MultiSharded) PartialVindex() bool {
 	return false
 }
