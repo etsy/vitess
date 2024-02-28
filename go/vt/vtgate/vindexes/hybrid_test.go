@@ -96,6 +96,53 @@ func TestHybridMap(t *testing.T) {
 	require.Error(t, err)
 }
 
+// Ensure that the Vindex correctly maps ids to destinations when no threshold is provided
+func TestHybridMapNoThreshold(t *testing.T) {
+	hybridSqliteHash := createHybridNoThreshold("etsy_sqlite_lookup_unique", "hash", map[string]string{
+		"path":  "testdata/sqlite_vindex_test.db",
+		"table": "t",
+		"from":  "id",
+		"to":    "ksid",
+	}, t)
+
+	// List of ids
+	got, err := hybridSqliteHash.Map(context.Background(), nil, []sqltypes.Value{
+		sqltypes.NewInt64(3),
+		sqltypes.NewVarChar("3"),
+		sqltypes.NewInt64(1),
+		sqltypes.NewVarBinary("1"),
+		sqltypes.NewInt64(6),
+		sqltypes.NewVarBinary("6"),
+		sqltypes.NewInt64(500),
+		sqltypes.NewVarBinary("500"),
+	})
+	require.NoError(t, err)
+	want := []key.Destination{
+		key.DestinationKeyspaceID([]byte("N\xb1\x90\xc9\xa2\xfa\x16\x9c")),
+		key.DestinationKeyspaceID([]byte("N\xb1\x90\xc9\xa2\xfa\x16\x9c")),
+		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("10")),
+		key.DestinationKeyspaceID([]byte("17")),
+		key.DestinationKeyspaceID([]byte("17")),
+		key.DestinationKeyspaceID([]byte("\xad\xa4\xf0\xa6;S\x99\x13")),
+		key.DestinationKeyspaceID([]byte("\xad\xa4\xf0\xa6;S\x99\x13")),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Hybrid.Map(): %+v, want %+v", got, want)
+	}
+
+	// Test that negative ids fail to map to a ksid
+	_, err = hybridSqliteHash.Map(context.Background(), nil, []sqltypes.Value{
+		sqltypes.NewInt64(-13),
+	})
+	require.Error(t, err)
+
+	_, err = hybridSqliteHash.Map(context.Background(), nil, []sqltypes.Value{
+		sqltypes.NewVarBinary("-13"),
+	})
+	require.Error(t, err)
+}
+
 // Ensure that the Vindex correctly verifies results
 func TestHybridVerify(t *testing.T) {
 	hybridSqliteHash := createHybrid("etsy_sqlite_lookup_unique", "hash", 5, map[string]string{
@@ -117,6 +164,18 @@ func createHybrid(vindexA string, vindexB string, threshold int, options map[str
 	options["vindex_a"] = vindexA
 	options["vindex_b"] = vindexB
 	options["threshold"] = strconv.Itoa(threshold)
+
+	l, err := CreateVindex("etsy_hybrid", "etsy_hybrid", options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return l.(SingleColumn)
+}
+
+func createHybridNoThreshold(vindexA string, vindexB string, options map[string]string, t *testing.T) SingleColumn {
+	t.Helper()
+	options["vindex_a"] = vindexA
+	options["vindex_b"] = vindexB
 
 	l, err := CreateVindex("etsy_hybrid", "etsy_hybrid", options)
 	if err != nil {
