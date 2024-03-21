@@ -32,31 +32,34 @@ func init() {
 	Register("etsy_multisharded", NewMultiSharded)
 }
 
+// Multisharded defines a multicolumn vindex that resolves a provided
+// typeId column value to a hybrid subvindex and applies the subvindex
+// to the given id column value
 type MultiSharded struct {
-	name               string
-	typeIdToVindexName map[string]string
-	subvindexMap       map[string]SingleColumn
+	name                  string
+	typeIdToSubvindexName map[string]string
+	subvindexes           map[string]SingleColumn
 }
 
 func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
 
-	var typeIdToVindexName map[string]string
-	err := json.Unmarshal([]byte(m["owner_type_to_vindex"]), &typeIdToVindexName)
+	var typeIdToSubvindexName map[string]string
+	err := json.Unmarshal([]byte(m["owner_type_to_vindex"]), &typeIdToSubvindexName)
 	if err != nil {
 		return nil, err
 	}
 
-	subvindexMap := make(map[string]SingleColumn)
-	for _, vindexName := range typeIdToVindexName {
+	subvindexes := make(map[string]SingleColumn)
+	for _, vindexName := range typeIdToSubvindexName {
 		if _, ok := hybridVindexes[vindexName]; ok {
-			subvindexMap[vindexName] = hybridVindexes[vindexName]
+			subvindexes[vindexName] = hybridVindexes[vindexName]
 		}
 	}
 
 	return &MultiSharded{
-		name:               name,
-		typeIdToVindexName: typeIdToVindexName,
-		subvindexMap:       subvindexMap,
+		name:                  name,
+		typeIdToSubvindexName: typeIdToSubvindexName,
+		subvindexes:           subvindexes,
 	}, nil
 }
 
@@ -66,7 +69,7 @@ func (m *MultiSharded) String() string {
 
 func (m *MultiSharded) Cost() int {
 	cost := 0
-	for _, subvindex := range m.subvindexMap {
+	for _, subvindex := range m.subvindexes {
 		if subvindex == nil {
 			continue
 		}
@@ -79,7 +82,7 @@ func (m *MultiSharded) Cost() int {
 }
 
 func (m *MultiSharded) IsUnique() bool {
-	for _, subvindex := range m.subvindexMap {
+	for _, subvindex := range m.subvindexes {
 		if subvindex == nil {
 			continue
 		}
@@ -92,7 +95,7 @@ func (m *MultiSharded) IsUnique() bool {
 }
 
 func (m *MultiSharded) NeedsVCursor() bool {
-	for _, subvindex := range m.subvindexMap {
+	for _, subvindex := range m.subvindexes {
 		if subvindex == nil {
 			continue
 		}
@@ -121,7 +124,7 @@ func (m *MultiSharded) Map(ctx context.Context, vcursor VCursor, rowsColValues [
 		for _, colValue := range colValues {
 			ids = append(ids, colValue[1])
 		}
-		res, err := m.subvindexMap[subvindexName].Map(ctx, vcursor, ids)
+		res, err := m.subvindexes[subvindexName].Map(ctx, vcursor, ids)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +181,7 @@ func (m *MultiSharded) Verify(ctx context.Context, vcursor VCursor, rowsColValue
 		for _, colValue := range colValues {
 			ids = append(ids, colValue[1])
 		}
-		res, err := m.subvindexMap[subvindexName].Verify(ctx, vcursor, ids, subvindexKsids)
+		res, err := m.subvindexes[subvindexName].Verify(ctx, vcursor, ids, subvindexKsids)
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +228,7 @@ func (m *MultiSharded) separateBySubvindex(rowsColValues [][]sqltypes.Value, ksi
 	var subvindexToRowsColValues = make(map[string][][]sqltypes.Value)
 	var subvindexToKsids = make(map[string][][]byte)
 	for i, colValues := range rowsColValues {
-		subvindexName, ok := m.typeIdToVindexName[colValues[0].ToString()]
+		subvindexName, ok := m.typeIdToSubvindexName[colValues[0].ToString()]
 		if !ok {
 			return nil, nil, fmt.Errorf("MultiSharded.separateBySubvindex: no subvindex found for typeId %v with id %v", colValues[0], colValues[1])
 		}

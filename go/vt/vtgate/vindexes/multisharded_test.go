@@ -52,15 +52,15 @@ func TestMultiShardedCreation(t *testing.T) {
 			actualName)
 	}
 
-	expectedTypeIdToVindexName := map[string]string{"1": "etsy_hybrid_user", "2": "etsy_hybrid_shop"}
-	diff := cmp.Diff(multisharded.(*MultiSharded).typeIdToVindexName,
-		expectedTypeIdToVindexName)
+	expectedTypeIdToSubvindexName := map[string]string{"1": "etsy_hybrid_user", "2": "etsy_hybrid_shop"}
+	diff := cmp.Diff(multisharded.(*MultiSharded).typeIdToSubvindexName,
+		expectedTypeIdToSubvindexName)
 
 	if diff != "" {
 		t.Errorf(
 			"Got unexpected value for multisharded.ownerTypeToVindexName. Expected: %v, Got: %v",
-			expectedTypeIdToVindexName,
-			multisharded.(*MultiSharded).typeIdToVindexName)
+			expectedTypeIdToSubvindexName,
+			multisharded.(*MultiSharded).typeIdToSubvindexName)
 	}
 
 	expectedSubvindexMap := map[string]SingleColumn{
@@ -68,14 +68,14 @@ func TestMultiShardedCreation(t *testing.T) {
 		"etsy_hybrid_shop": &HybridStub{},
 	}
 
-	diff = cmp.Diff(multisharded.(*MultiSharded).subvindexMap,
+	diff = cmp.Diff(multisharded.(*MultiSharded).subvindexes,
 		expectedSubvindexMap, cmp.AllowUnexported(HybridStub{}))
 
 	if diff != "" {
 		t.Errorf(
-			"Got unexpected value for multisharded.subvindexMap. Expected: %v, Got: %v",
+			"Got unexpected value for multisharded.subvindexes. Expected: %v, Got: %v",
 			expectedSubvindexMap,
-			multisharded.(*MultiSharded).subvindexMap)
+			multisharded.(*MultiSharded).subvindexes)
 	}
 }
 
@@ -141,41 +141,8 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 	}
 
-	// TODO: Move this into helper?
-	hybridVindexes = make(map[string]SingleColumn)
-	hybridVindexes["subvindex_a"] = &HybridStub{
-		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
-			res := make([]key.Destination, 0, len(ids))
-			for _, id := range ids {
-				switch id.ToString() {
-				case "1", "2", "3":
-					res = append(res, key.DestinationKeyspaceID([]byte("10")))
-				case "4", "5", "6":
-					res = append(res, key.DestinationKeyspaceID([]byte("20")))
-				default:
-					res = append(res, key.DestinationNone{})
-				}
-			}
-			return res, nil
-		},
-	}
+	hybridVindexes = buildHybridVindexesForMap()
 
-	hybridVindexes["subvindex_b"] = &HybridStub{
-		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
-			res := make([]key.Destination, 0, len(ids))
-			for _, id := range ids {
-				switch id.ToString() {
-				case "10", "20", "30":
-					res = append(res, key.DestinationKeyspaceID([]byte("100")))
-				case "40", "50", "60":
-					res = append(res, key.DestinationKeyspaceID([]byte("200")))
-				default:
-					res = append(res, key.DestinationNone{})
-				}
-			}
-			return res, nil
-		},
-	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			multisharded, err := CreateVindex(
@@ -332,57 +299,8 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 	}
 
-	// TODO: Move this into helper?
-	hybridVindexes = make(map[string]SingleColumn)
-	hybridVindexes["subvindex_a"] = &HybridStub{
-		verify: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
-			res := make([]bool, 0, len(ids))
-			for i, id := range ids {
-				switch id.ToString() {
-				case "1", "2", "3":
-					if bytes.Equal(ksids[i], []byte("10")) || bytes.Equal(ksids[i], []byte("20")) {
-						res = append(res, true)
-					} else {
-						res = append(res, false)
-					}
-				case "4", "5", "6":
-					if bytes.Equal(ksids[i], []byte("100")) || bytes.Equal(ksids[i], []byte("200")) {
-						res = append(res, true)
-					} else {
-						res = append(res, false)
-					}
-				default:
-					res = append(res, false)
-				}
-			}
-			return res, nil
-		},
-	}
+	hybridVindexes = buildHybridVindexesForVerify()
 
-	hybridVindexes["subvindex_b"] = &HybridStub{
-		verify: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
-			res := make([]bool, 0, len(ids))
-			for i, id := range ids {
-				switch id.ToString() {
-				case "10", "20", "30":
-					if bytes.Equal(ksids[i], []byte("30")) || bytes.Equal(ksids[i], []byte("40")) {
-						res = append(res, true)
-					} else {
-						res = append(res, false)
-					}
-				case "40", "50", "60":
-					if bytes.Equal(ksids[i], []byte("300")) || bytes.Equal(ksids[i], []byte("400")) {
-						res = append(res, true)
-					} else {
-						res = append(res, false)
-					}
-				default:
-					res = append(res, false)
-				}
-			}
-			return res, nil
-		},
-	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			multisharded, err := CreateVindex(
@@ -546,7 +464,101 @@ func TestMultiShardedNeedsVCursor(t *testing.T) {
 	}
 }
 
-// Set up for subvindex stubs
+// Setup for subvindex stubs
+func buildHybridVindexesForMap() map[string]SingleColumn {
+	hybridVindexes := make(map[string]SingleColumn)
+	hybridVindexes["subvindex_a"] = &HybridStub{
+		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
+			res := make([]key.Destination, 0, len(ids))
+			for _, id := range ids {
+				switch id.ToString() {
+				case "1", "2", "3":
+					res = append(res, key.DestinationKeyspaceID([]byte("10")))
+				case "4", "5", "6":
+					res = append(res, key.DestinationKeyspaceID([]byte("20")))
+				default:
+					res = append(res, key.DestinationNone{})
+				}
+			}
+			return res, nil
+		},
+	}
+
+	hybridVindexes["subvindex_b"] = &HybridStub{
+		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
+			res := make([]key.Destination, 0, len(ids))
+			for _, id := range ids {
+				switch id.ToString() {
+				case "10", "20", "30":
+					res = append(res, key.DestinationKeyspaceID([]byte("100")))
+				case "40", "50", "60":
+					res = append(res, key.DestinationKeyspaceID([]byte("200")))
+				default:
+					res = append(res, key.DestinationNone{})
+				}
+			}
+			return res, nil
+		},
+	}
+
+	return hybridVindexes
+}
+
+func buildHybridVindexesForVerify() map[string]SingleColumn {
+	hybridVindexes := make(map[string]SingleColumn)
+	hybridVindexes["subvindex_a"] = &HybridStub{
+		verify: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+			res := make([]bool, 0, len(ids))
+			for i, id := range ids {
+				switch id.ToString() {
+				case "1", "2", "3":
+					if bytes.Equal(ksids[i], []byte("10")) || bytes.Equal(ksids[i], []byte("20")) {
+						res = append(res, true)
+					} else {
+						res = append(res, false)
+					}
+				case "4", "5", "6":
+					if bytes.Equal(ksids[i], []byte("100")) || bytes.Equal(ksids[i], []byte("200")) {
+						res = append(res, true)
+					} else {
+						res = append(res, false)
+					}
+				default:
+					res = append(res, false)
+				}
+			}
+			return res, nil
+		},
+	}
+
+	hybridVindexes["subvindex_b"] = &HybridStub{
+		verify: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+			res := make([]bool, 0, len(ids))
+			for i, id := range ids {
+				switch id.ToString() {
+				case "10", "20", "30":
+					if bytes.Equal(ksids[i], []byte("30")) || bytes.Equal(ksids[i], []byte("40")) {
+						res = append(res, true)
+					} else {
+						res = append(res, false)
+					}
+				case "40", "50", "60":
+					if bytes.Equal(ksids[i], []byte("300")) || bytes.Equal(ksids[i], []byte("400")) {
+						res = append(res, true)
+					} else {
+						res = append(res, false)
+					}
+				default:
+					res = append(res, false)
+				}
+			}
+			return res, nil
+		},
+	}
+
+	return hybridVindexes
+}
+
 type HybridStub struct {
 	cost         func() int
 	isUnique     func() bool
