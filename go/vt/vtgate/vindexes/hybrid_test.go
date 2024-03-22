@@ -38,7 +38,7 @@ func TestHybridInfo(t *testing.T) {
 	assert.Equal(t, "etsy_hybrid_a_hash", hybridHashReverseThreshold.(*Hybrid).vindexA.String())
 	assert.Equal(t, "etsy_hybrid_b_reverse_bits", hybridHashReverseThreshold.(*Hybrid).vindexB.String())
 	assert.Equal(t, uint64(5), hybridHashReverseThreshold.(*Hybrid).threshold)
-	assert.Equal(t, map[string]SingleColumn{"etsy_hybrid": hybridHashReverse}, hybridVindexes)
+	assert.Equal(t, map[string]SingleColumn{"etsy_hybrid": hybridHashReverseThreshold}, hybridVindexes)
 
 	hybridHashReverseFallback := createHybridWithFallback("hash", "reverse_bits", map[string]string{}, t)
 	assert.Equal(t, 1, hybridHashReverseFallback.Cost())
@@ -73,7 +73,7 @@ func TestHybridInfo(t *testing.T) {
 	assert.Equal(t, "etsy_hybrid_a_etsy_sqlite_lookup_unique", hybridSqliteHashFallback.(*Hybrid).vindexA.String())
 	assert.Equal(t, "etsy_hybrid_b_hash", hybridSqliteHashFallback.(*Hybrid).vindexB.String())
 	assert.Equal(t, uint64(0), hybridSqliteHashFallback.(*Hybrid).threshold)
-	assert.Equal(t, map[string]SingleColumn{"etsy_hybrid": hybridSqliteHash}, hybridVindexes)
+	assert.Equal(t, map[string]SingleColumn{"etsy_hybrid": hybridSqliteHashFallback}, hybridVindexes)
 }
 
 // Ensure that the Vindex correctly maps ids to destinations

@@ -39,7 +39,7 @@ func TestMultiShardedCreation(t *testing.T) {
 	}
 
 	expectedName := "multisharded_test"
-	multisharded, err := CreateVindex("etsy_multisharded", expectedName, params)
+	multisharded, err := CreateVindex("etsy_multisharded_hybrid", expectedName, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +76,23 @@ func TestMultiShardedCreation(t *testing.T) {
 			"Got unexpected value for multisharded.subvindexes. Expected: %v, Got: %v",
 			expectedSubvindexMap,
 			multisharded.(*MultiSharded).subvindexes)
+	}
+}
+
+func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
+	hybridVindexes = map[string]SingleColumn{
+		"etsy_hybrid_DNE":  &HybridStub{},
+		"etsy_hybrid_shop": &HybridStub{},
+	}
+
+	params := map[string]string{
+		"owner_type_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
+	}
+
+	expectedName := "multisharded_test"
+	_, err := CreateVindex("etsy_multisharded_hybrid", expectedName, params)
+	if err == nil {
+		t.Errorf("Expected error from multisharded.NewMultiSharded, got nil")
 	}
 }
 
@@ -139,6 +156,55 @@ func TestMultiShardedMap(t *testing.T) {
 			nil,
 			true,
 		},
+		{
+			"Errors when type_id is negative int",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewInt64(-1), sqltypes.NewInt64(100)},
+			},
+			nil,
+			true,
+		},
+		{
+			"Errors when id is negative int",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewInt64(1), sqltypes.NewInt64(-100)},
+			},
+			nil,
+			true,
+		},
+		{
+			"Errors when type_id is negative string",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewVarChar("-1"), sqltypes.NewVarChar("100")},
+			},
+			nil,
+			true,
+		},
+		{
+			"Errors when id is negative string",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("-100")},
+			},
+			nil,
+			true,
+		},
+		{
+			"String ids supported",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("1")},
+				{sqltypes.NewVarBinary("2"), sqltypes.NewVarBinary("60")},
+			},
+			[]key.Destination{
+				key.DestinationKeyspaceID([]byte("10")),
+				key.DestinationKeyspaceID([]byte("200")),
+			},
+			false,
+		},
 	}
 
 	hybridVindexes = buildHybridVindexesForMap()
@@ -146,7 +212,7 @@ func TestMultiShardedMap(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			multisharded, err := CreateVindex(
-				"etsy_multisharded",
+				"etsy_multisharded_hybrid",
 				"multisharded_test",
 				map[string]string{"owner_type_to_vindex": c.ownerTypeToVindex})
 
@@ -297,6 +363,68 @@ func TestMultiShardedVerify(t *testing.T) {
 			nil,
 			true,
 		},
+		{
+			"Errors when type_id is negative int",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewInt64(-1), sqltypes.NewInt64(1)},
+			},
+			[][]byte{
+				[]byte("20"),
+			},
+			nil,
+			true,
+		},
+		{
+			"Errors when id is negative int",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewInt64(1), sqltypes.NewInt64(-1)},
+			},
+			[][]byte{
+				[]byte("20"),
+			},
+			nil,
+			true,
+		},
+		{
+			"Errors when type_id is negative string",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewVarChar("-1"), sqltypes.NewVarChar("1")},
+			},
+			[][]byte{
+				[]byte("20"),
+			},
+			nil,
+			true,
+		},
+		{
+			"Errors when id is negative string",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("-1")},
+			},
+			[][]byte{
+				[]byte("20"),
+			},
+			nil,
+			true,
+		},
+		{
+			"String ids supported",
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			[][]sqltypes.Value{
+				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("1")},
+				{sqltypes.NewVarBinary("1"), sqltypes.NewVarBinary("2")},
+			},
+			[][]byte{
+				[]byte("20"),
+				[]byte("10"),
+			},
+			[]bool{true, true},
+			false,
+		},
 	}
 
 	hybridVindexes = buildHybridVindexesForVerify()
@@ -304,7 +432,7 @@ func TestMultiShardedVerify(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			multisharded, err := CreateVindex(
-				"etsy_multisharded",
+				"etsy_multisharded_hybrid",
 				"multisharded_test",
 				map[string]string{"owner_type_to_vindex": c.ownerTypeToVindex})
 
@@ -362,7 +490,7 @@ func TestMultiShardedCost(t *testing.T) {
 			params := map[string]string{
 				"owner_type_to_vindex": c.ownerTypeToVindex,
 			}
-			multisharded, err := CreateVindex("etsy_multisharded", "multisharded_test", params)
+			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -406,7 +534,7 @@ func TestMultiShardedIsUnique(t *testing.T) {
 			params := map[string]string{
 				"owner_type_to_vindex": c.ownerTypeToVindex,
 			}
-			multisharded, err := CreateVindex("etsy_multisharded", "multisharded_test", params)
+			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -450,7 +578,7 @@ func TestMultiShardedNeedsVCursor(t *testing.T) {
 			params := map[string]string{
 				"owner_type_to_vindex": c.ownerTypeToVindex,
 			}
-			multisharded, err := CreateVindex("etsy_multisharded", "multisharded_test", params)
+			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
 			if err != nil {
 				t.Fatal(err)
 			}

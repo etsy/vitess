@@ -29,7 +29,7 @@ import (
 var _ MultiColumn = (*MultiSharded)(nil)
 
 func init() {
-	Register("etsy_multisharded", NewMultiSharded)
+	Register("etsy_multisharded_hybrid", NewMultiSharded)
 }
 
 // Multisharded defines a multicolumn vindex that resolves a provided
@@ -41,6 +41,14 @@ type MultiSharded struct {
 	subvindexes           map[string]SingleColumn
 }
 
+// NewMultiSharded creates a multicolumn vindex that
+// routes a query to one of multiple possible hybrid vindexes.
+// The supplied map has one field:
+// owner_type_to_vindex: name of the first vindex
+//
+// The expected order of columns passed to the MultiSharded vindex is
+// type_id (which maps to a hybrid vindex type), followed by the identifier
+// that will be used by the hybrid vindex to resolve to a keyspace id
 func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
 
 	var typeIdToSubvindexName map[string]string
@@ -53,6 +61,8 @@ func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
 	for _, vindexName := range typeIdToSubvindexName {
 		if _, ok := hybridVindexes[vindexName]; ok {
 			subvindexes[vindexName] = hybridVindexes[vindexName]
+		} else {
+			return nil, fmt.Errorf("Multisharded.NewMultisharded: No hybrid vindex named %s has been defined", vindexName)
 		}
 	}
 
