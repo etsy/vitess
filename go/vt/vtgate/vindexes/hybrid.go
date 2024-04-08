@@ -34,8 +34,14 @@ func init() {
 	Register("etsy_hybrid", NewHybrid)
 }
 
-// Hybrid defines a vindex consisting of two vindexes that are applied based on a
-// threshold the value of the provided column.
+// Hybrid defines a vindex consisting of two vindexes.
+// These can be applied in two ways:
+//  1. 	If no threshold is provided or threshold = 0:
+//			Always use vindex A and fall back to vindex B if A
+//			does not return a result.
+// 	2.  If threshold > 0:
+//			Use vindex A if the value is below the threshold,
+//			otherwise use vindex B.
 type Hybrid struct {
 	name      string
 	vindexA   SingleColumn
@@ -48,10 +54,8 @@ type Hybrid struct {
 //
 //	vindex_a: name of the first vindex
 //	vindex_b: name of the second vindex
-//	threshold: unsigned int value to compare to provided id
-//	    if id < threshold, use vindex a, otherwise, choose b
-//	    if no threshold is provided, always check vindex a first,
-//	    and then check b if a does not return a result
+//	threshold: (optional) unsigned int value to compare to provided id
+//	    if id < threshold, use vindex a, otherwise, choose b.
 //
 // The required fields from vindex a and vindex b should also be
 // included in the supplied map
@@ -111,11 +115,11 @@ func (h *Hybrid) NeedsVCursor() bool {
 // This mapping is used to determine which shard contains a row. If the id is absent from the vindex
 // lookup table, Map returns key.DestinationNone{}, which does not map to any shard.
 func (h *Hybrid) Map(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
-	if (h.threshold == 0) {
-		ret, err := h.mapWithoutThreshold(ctx, vcursor, ids)
+	if (h.threshold > 0) {
+		ret, err := h.mapWithThreshold(ctx, vcursor, ids)
 		return ret, err
 	}
-	ret, err := h.mapWithThreshold(ctx, vcursor, ids)
+	ret, err := h.mapWithFallback(ctx, vcursor, ids)
 	return ret, err
 }
 
@@ -159,24 +163,21 @@ func (h *Hybrid) mapWithThreshold(ctx context.Context, vcursor VCursor, ids []sq
 	return out, err
 }
 
-func (h *Hybrid) mapWithoutThreshold(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
+func (h *Hybrid) mapWithFallback(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
 	out := make([]key.Destination, len(ids))
 	var err error
-
-	var	idsVindexA []sqltypes.Value
 	var	idsVindexB []sqltypes.Value
 
-	// Check that type is valid
 	for _, id := range ids {
+		// Check that type is valid
 		_, err := evalengine.ToUint64(id)
 		if err != nil {
 			return nil, err
 		}
-		idsVindexA = append(idsVindexA, id)
 	}
 
 	// Query first component vindex
-	vindexARes, err := h.vindexA.Map(ctx, vcursor, idsVindexA)
+	vindexARes, err := h.vindexA.Map(ctx, vcursor, ids)
 
 	// Build list of ids that were not found in the first vindex
 	for i, id := range ids {
@@ -200,7 +201,7 @@ func (h *Hybrid) mapWithoutThreshold(ctx context.Context, vcursor VCursor, ids [
 		if ok && idsVindexB[b].ToString() == idString {
 			out[i] = vindexBRes[b]
 			b++
-		} else if idsVindexA[i].ToString() == idString {
+		} else if ids[i].ToString() == idString {
 			out[i] = vindexARes[i]
 		} else {
 			return nil, fmt.Errorf("Hybrid.Map: no result found for input id %v", id)
@@ -212,6 +213,15 @@ func (h *Hybrid) mapWithoutThreshold(ctx context.Context, vcursor VCursor, ids [
 
 // Verify returns true if ids maps to ksids.
 func (h *Hybrid) Verify(ctx context.Context, vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+	if (h.threshold > 0) {
+		out, err := h.verifyWithThreshold(ctx, vcursor, ids, ksids)
+		return out, err
+	}
+	out, err := h.verifyWithFallback(ctx, vcursor, ids, ksids)
+	return out, err
+}
+
+func (h *Hybrid) verifyWithThreshold(ctx context.Context, vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 	out := make([]bool, len(ids))
 	var err error
 
@@ -241,6 +251,50 @@ func (h *Hybrid) Verify(ctx context.Context, vcursor VCursor, ids []sqltypes.Val
 		} else if len(idsVindexB) > b && idsVindexB[b].ToString() == idString {
 			out[i] = vindexBRes[b]
 			b++
+		} else {
+			return nil, fmt.Errorf("Hybrid.Verify: no result found for input id %v", id)
+		}
+	}
+
+	return out, err
+}
+
+func (h* Hybrid) verifyWithFallback(ctx context.Context, vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+	out := make([]bool, len(ids))
+	var err error
+
+	var	idsVindexB []sqltypes.Value
+	var	ksidsVindexB [][]byte
+
+	// Query first component vindex
+	vindexARes, err := h.vindexA.Verify(ctx, vcursor, ids, ksids)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build lists of ids to send to each component vindex -
+	// ids were found in vindex A and ids that were not found and will use vindex B
+	for i, id := range ids {
+		if (vindexARes[i] == false) {
+			idsVindexB = append(idsVindexB, id)
+			ksidsVindexB = append(ksidsVindexB, ksids[i])
+		}
+	}
+
+	vindexBRes, err := h.vindexB.Verify(ctx, vcursor, idsVindexB, ksidsVindexB)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build output by combining results
+	b := 0
+	for i, id := range ids {
+		idString := id.ToString()
+		if (vindexARes[i] == false && idsVindexB[b].ToString() == idString) {
+			out[i] = vindexBRes[b]
+			b++
+		} else if ids[i].ToString() == idString {
+			out[i] = vindexARes[i]
 		} else {
 			return nil, fmt.Errorf("Hybrid.Verify: no result found for input id %v", id)
 		}
