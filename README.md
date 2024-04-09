@@ -1,3 +1,7 @@
+This repo contains the patched version of [Vitess](https://github.com/vitessio/vitess) that is used and maintained by Etsy. At this time, we do not offer support to non-Etsy users.
+
+---
+
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.vitess/vitess-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.vitess/vitess-jdbc)
 [![Coverage Status](https://codecov.io/gh/vitessio/vitess/branch/main/graph/badge.svg)](https://app.codecov.io/gh/vitessio/vitess/tree/main)
 [![Go Report Card](https://goreportcard.com/badge/vitess.io/vitess)](https://goreportcard.com/report/vitess.io/vitess)
