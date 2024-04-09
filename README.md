@@ -1,3 +1,7 @@
+This repo contains the patched version of [Vitess](https://github.com/vitessio/vitess) that is used and maintained by Etsy. At this time, we do not offer support to non-Etsy users.
+
+---
+
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.vitess/vitess-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.vitess/vitess-jdbc)
 [![Build Status](https://travis-ci.org/vitessio/vitess.svg?branch=master)](https://travis-ci.org/vitessio/vitess/builds)
 [![codebeat badge](https://codebeat.co/badges/51c9a056-1103-4522-9a9c-dc623821ea87)](https://codebeat.co/projects/github-com-youtube-vitess)
