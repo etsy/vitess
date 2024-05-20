@@ -198,11 +198,11 @@ func (h *Hybrid) mapWithFallback(ctx context.Context, vcursor VCursor, ids []sql
 	for i, id := range ids {
 		idString := id.ToString()
 		_, ok := vindexARes[i].(key.DestinationNone)
-		if ok && idsVindexB[b].ToString() == idString {
+		if !ok {
+			out[i] = vindexARes[i]
+		} else if idsVindexB[b].ToString() == idString {
 			out[i] = vindexBRes[b]
 			b++
-		} else if ids[i].ToString() == idString {
-			out[i] = vindexARes[i]
 		} else {
 			return nil, fmt.Errorf("Hybrid.Map: no result found for input id %v", id)
 		}
@@ -293,10 +293,8 @@ func (h* Hybrid) verifyWithFallback(ctx context.Context, vcursor VCursor, ids []
 		if (vindexARes[i] == false && idsVindexB[b].ToString() == idString) {
 			out[i] = vindexBRes[b]
 			b++
-		} else if ids[i].ToString() == idString {
-			out[i] = vindexARes[i]
 		} else {
-			return nil, fmt.Errorf("Hybrid.Verify: no result found for input id %v", id)
+			out[i] = vindexARes[i]
 		}
 	}
 
