@@ -44,7 +44,7 @@ type MultiSharded struct {
 // NewMultiSharded creates a multicolumn vindex that
 // routes a query to one of multiple possible hybrid vindexes.
 // The supplied map has one field:
-// owner_type_to_vindex: name of the first vindex
+// type_id_to_vindex: a JSON mapping of an id value representing a hybrid vindex to the hybrid vindex's name
 //
 // The expected order of columns passed to the MultiSharded vindex is
 // type_id (which maps to a hybrid vindex type), followed by the identifier
@@ -52,13 +52,15 @@ type MultiSharded struct {
 func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
 
 	var typeIdToSubvindexName map[string]string
-	err := json.Unmarshal([]byte(m["owner_type_to_vindex"]), &typeIdToSubvindexName)
+	err := json.Unmarshal([]byte(m["type_id_to_vindex"]), &typeIdToSubvindexName)
 	if err != nil {
 		return nil, err
 	}
 
 	subvindexes := make(map[string]SingleColumn)
 	for _, vindexName := range typeIdToSubvindexName {
+		// Only hybrid vindexes defined above this etsy_multisharded_hybrid vindex in the vschema,
+		// and therefore initialized before this vschema, will be avaiable in `hybridVindexes`.
 		if _, ok := hybridVindexes[vindexName]; ok {
 			subvindexes[vindexName] = hybridVindexes[vindexName]
 		} else {

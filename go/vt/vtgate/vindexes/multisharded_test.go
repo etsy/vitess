@@ -35,7 +35,7 @@ func TestMultiShardedCreation(t *testing.T) {
 	}
 
 	params := map[string]string{
-		"owner_type_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
+		"type_id_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
 	}
 
 	expectedName := "multisharded_test"
@@ -58,7 +58,7 @@ func TestMultiShardedCreation(t *testing.T) {
 
 	if diff != "" {
 		t.Errorf(
-			"Got unexpected value for multisharded.ownerTypeToVindexName. Expected: %v, Got: %v",
+			"Got unexpected value for multisharded.TypeIdToVindexName. Expected: %v, Got: %v",
 			expectedTypeIdToSubvindexName,
 			multisharded.(*MultiSharded).typeIdToSubvindexName)
 	}
@@ -86,7 +86,7 @@ func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
 	}
 
 	params := map[string]string{
-		"owner_type_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
+		"type_id_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
 	}
 
 	expectedName := "multisharded_test"
@@ -98,11 +98,11 @@ func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
 
 func TestMultiShardedMap(t *testing.T) {
 	cases := []struct {
-		name              string
-		ownerTypeToVindex string
-		rowsColValues     [][]sqltypes.Value
-		expected          []key.Destination
-		shouldErr         bool
+		name           string
+		typeIdToVindex string
+		rowsColValues  [][]sqltypes.Value
+		expected       []key.Destination
+		shouldErr      bool
 	}{
 		{
 			"All rows map to same subvindex",
@@ -214,7 +214,7 @@ func TestMultiShardedMap(t *testing.T) {
 			multisharded, err := CreateVindex(
 				"etsy_multisharded_hybrid",
 				"multisharded_test",
-				map[string]string{"owner_type_to_vindex": c.ownerTypeToVindex})
+				map[string]string{"type_id_to_vindex": c.typeIdToVindex})
 
 			if err != nil {
 				t.Fatal(err)
@@ -242,12 +242,12 @@ func TestMultiShardedMap(t *testing.T) {
 
 func TestMultiShardedVerify(t *testing.T) {
 	cases := []struct {
-		name              string
-		ownerTypeToVindex string
-		rowsColValues     [][]sqltypes.Value
-		ksids             [][]byte
-		expected          []bool
-		shouldErr         bool
+		name           string
+		typeIdToVindex string
+		rowsColValues  [][]sqltypes.Value
+		ksids          [][]byte
+		expected       []bool
+		shouldErr      bool
 	}{
 		{
 			"Same subvindex, all ksids map correctly to ids",
@@ -434,7 +434,7 @@ func TestMultiShardedVerify(t *testing.T) {
 			multisharded, err := CreateVindex(
 				"etsy_multisharded_hybrid",
 				"multisharded_test",
-				map[string]string{"owner_type_to_vindex": c.ownerTypeToVindex})
+				map[string]string{"type_id_to_vindex": c.typeIdToVindex})
 
 			if err != nil {
 				t.Fatal(err)
@@ -462,10 +462,10 @@ func TestMultiShardedVerify(t *testing.T) {
 
 func TestMultiShardedCost(t *testing.T) {
 	cases := []struct {
-		name              string
-		costs             []int
-		ownerTypeToVindex string
-		expected          int
+		name           string
+		costs          []int
+		typeIdToVindex string
+		expected       int
 	}{
 		{"No subvindexes", []int{}, `{}`, 0},
 		{"All costs are 0", []int{0, 0, 0}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, 0},
@@ -488,7 +488,7 @@ func TestMultiShardedCost(t *testing.T) {
 
 			// create multisharded vindex
 			params := map[string]string{
-				"owner_type_to_vindex": c.ownerTypeToVindex,
+				"type_id_to_vindex": c.typeIdToVindex,
 			}
 			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
 			if err != nil {
@@ -506,10 +506,10 @@ func TestMultiShardedCost(t *testing.T) {
 
 func TestMultiShardedIsUnique(t *testing.T) {
 	cases := []struct {
-		name              string
-		isUniqueResults   []bool
-		ownerTypeToVindex string
-		expected          bool
+		name            string
+		isUniqueResults []bool
+		typeIdToVindex  string
+		expected        bool
 	}{
 		{"No subvindexes", []bool{}, `{}`, true},
 		{"All subvindexes are unique", []bool{true, true, true}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, true},
@@ -532,7 +532,7 @@ func TestMultiShardedIsUnique(t *testing.T) {
 
 			// create multisharded vindex
 			params := map[string]string{
-				"owner_type_to_vindex": c.ownerTypeToVindex,
+				"type_id_to_vindex": c.typeIdToVindex,
 			}
 			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
 			if err != nil {
@@ -552,7 +552,7 @@ func TestMultiShardedNeedsVCursor(t *testing.T) {
 	cases := []struct {
 		name                string
 		needsVCursorResults []bool
-		ownerTypeToVindex   string
+		typeIdToVindex      string
 		expected            bool
 	}{
 		{"No subvindexes", []bool{}, `{}`, false},
@@ -576,7 +576,7 @@ func TestMultiShardedNeedsVCursor(t *testing.T) {
 
 			// create multisharded vindex
 			params := map[string]string{
-				"owner_type_to_vindex": c.ownerTypeToVindex,
+				"type_id_to_vindex": c.typeIdToVindex,
 			}
 			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
 			if err != nil {
