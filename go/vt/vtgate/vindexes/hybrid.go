@@ -27,7 +27,8 @@ import (
 )
 
 var (
-	_ SingleColumn = (*Hybrid)(nil)
+	_              SingleColumn = (*Hybrid)(nil)
+	hybridVindexes              = make(map[string]SingleColumn)
 )
 
 func init() {
@@ -84,6 +85,8 @@ func NewHybrid(name string, m map[string]string) (Vindex, error) {
 	}
 	h.vindexB = vindexB.(SingleColumn)
 
+	// store this vindex so it can be referenced in other vindexes
+	hybridVindexes[name] = h
 	return h, nil
 }
 
