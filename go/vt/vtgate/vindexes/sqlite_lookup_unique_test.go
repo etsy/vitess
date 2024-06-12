@@ -141,7 +141,7 @@ func createSqliteLookupUnique(t *testing.T) SingleColumn {
 		"from":       "id",
 		"to":         "ksid",
 		"cache_size": "100",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

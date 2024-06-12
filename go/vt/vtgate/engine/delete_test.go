@@ -65,7 +65,7 @@ func TestDeleteUnsharded(t *testing.T) {
 }
 
 func TestDeleteEqual(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	del := &Delete{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -97,7 +97,7 @@ func TestDeleteEqual(t *testing.T) {
 }
 
 func TestDeleteEqualMultiCol(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	del := &Delete{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -133,7 +133,7 @@ func TestDeleteEqualNoRoute(t *testing.T) {
 		"table": "lkp",
 		"from":  "from",
 		"to":    "toc",
-	})
+	}, nil)
 	del := &Delete{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -166,7 +166,7 @@ func TestDeleteEqualNoScatter(t *testing.T) {
 		"from":       "from",
 		"to":         "toc",
 		"write_only": "true",
-	})
+	}, nil)
 	del := &Delete{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -556,7 +556,7 @@ func TestDeleteInChangedVindexMultiCol(t *testing.T) {
 }
 
 func TestDeleteEqualSubshard(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	del := &Delete{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{

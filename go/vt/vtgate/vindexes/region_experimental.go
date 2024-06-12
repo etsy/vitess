@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -48,7 +49,7 @@ type RegionExperimental struct {
 // NewRegionExperimental creates a RegionExperimental vindex.
 // The supplied map requires all the fields of "consistent_lookup_unique".
 // Additionally, it requires a region_bytes argument whose value can be "1", or "2".
-func NewRegionExperimental(name string, m map[string]string) (Vindex, error) {
+func NewRegionExperimental(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	rbs, ok := m["region_bytes"]
 	if !ok {
 		return nil, fmt.Errorf("region_experimental missing region_bytes param")

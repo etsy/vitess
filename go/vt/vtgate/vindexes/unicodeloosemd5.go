@@ -23,6 +23,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
 
 var (
@@ -40,7 +41,7 @@ type UnicodeLooseMD5 struct {
 }
 
 // NewUnicodeLooseMD5 creates a new UnicodeLooseMD5.
-func NewUnicodeLooseMD5(name string, _ map[string]string) (Vindex, error) {
+func NewUnicodeLooseMD5(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &UnicodeLooseMD5{name: name}, nil
 }
 

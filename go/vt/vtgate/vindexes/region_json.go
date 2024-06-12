@@ -25,6 +25,7 @@ import (
 	"os"
 	"strconv"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -58,7 +59,7 @@ type RegionJSON struct {
 // The supplied map requires all the fields of "RegionExperimental".
 // Additionally, it requires a region_map argument representing the path to a json file
 // containing a map of country to region.
-func NewRegionJSON(name string, m map[string]string) (Vindex, error) {
+func NewRegionJSON(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	rmPath := m["region_map"]
 	rmap := make(map[string]uint64)
 	data, err := os.ReadFile(rmPath)

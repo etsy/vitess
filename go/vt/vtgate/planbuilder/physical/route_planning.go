@@ -424,7 +424,7 @@ func createRoute(ctx *plancontext.PlanningContext, table *abstract.QueryTable, s
 		// Use the Binary vindex, which is the identity function
 		// for keyspace id.
 		plan.RouteOpCode = engine.EqualUnique
-		vindex, _ := vindexes.NewBinary("binary", nil)
+		vindex, _ := vindexes.NewBinary("binary", nil, nil)
 		plan.Selected = &VindexOption{
 			Ready:       true,
 			Values:      []evalengine.Expr{evalengine.NewLiteralString(vschemaTable.Pinned, collations.TypedCollation{})},

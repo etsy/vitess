@@ -19,27 +19,57 @@ package vindexes
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
+
+func init() {
+	Register("singlecol_stub", NewSinglecolStub)
+}
 
 // Ensure that MultiSharded properties are correctly defined upon creation
 func TestMultiShardedCreation(t *testing.T) {
-	hybridVindexes = map[string]SingleColumn{
-		"etsy_hybrid_user": &HybridStub{},
-		"etsy_hybrid_shop": &HybridStub{},
-	}
-
-	params := map[string]string{
-		"type_id_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
-	}
-
 	expectedName := "multisharded_test"
-	multisharded, err := CreateVindex("etsy_multisharded_hybrid", expectedName, params)
+	expectedParams := map[string]string{
+		"type_id_to_vindex": `{"1":"subvindex_1", "2":"subvindex_2"}`,
+	}
+
+	subvindex1Params := map[string]string{
+		"param1": "a",
+		"param2": "b",
+		"param3": "c",
+	}
+
+	subvindex2Params := map[string]string{
+		"param1": "x",
+		"param2": "y",
+		"param3": "z",
+	}
+
+	vindexSchemaStub := map[string]*vschemapb.Vindex{
+		"subvindex_1": &vschemapb.Vindex{
+			Type:   "singlecol_stub",
+			Params: subvindex1Params,
+			Owner:  "",
+		},
+		"subvindex_2": &vschemapb.Vindex{
+			Type:   "singlecol_stub",
+			Params: subvindex2Params,
+			Owner:  "",
+		},
+		"multisharded_test": &vschemapb.Vindex{
+			Type:   "etsy_multisharded_hybrid",
+			Params: expectedParams,
+			Owner:  "",
+		},
+	}
+
+	multisharded, err := CreateVindex("etsy_multisharded_hybrid", expectedName, expectedParams, vindexSchemaStub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,9 +82,10 @@ func TestMultiShardedCreation(t *testing.T) {
 			actualName)
 	}
 
-	expectedTypeIdToSubvindexName := map[string]string{"1": "etsy_hybrid_user", "2": "etsy_hybrid_shop"}
+	expectedTypeIdToSubvindexName := map[string]string{"1": "multisharded_test_subvindex_1", "2": "multisharded_test_subvindex_2"}
 	diff := cmp.Diff(multisharded.(*MultiSharded).typeIdToSubvindexName,
-		expectedTypeIdToSubvindexName)
+		expectedTypeIdToSubvindexName,
+		cmp.AllowUnexported(SinglecolStub{}))
 
 	if diff != "" {
 		t.Errorf(
@@ -63,34 +94,60 @@ func TestMultiShardedCreation(t *testing.T) {
 			multisharded.(*MultiSharded).typeIdToSubvindexName)
 	}
 
-	expectedSubvindexMap := map[string]SingleColumn{
-		"etsy_hybrid_user": &HybridStub{},
-		"etsy_hybrid_shop": &HybridStub{},
+	expectedSubvindex1, err := CreateVindex("singlecol_stub", "multisharded_test_subvindex_1", subvindex1Params, vindexSchemaStub)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	diff = cmp.Diff(multisharded.(*MultiSharded).subvindexes,
-		expectedSubvindexMap, cmp.AllowUnexported(HybridStub{}))
+	expectedSubvindex2, err := CreateVindex("singlecol_stub", "multisharded_test_subvindex_2", subvindex2Params, vindexSchemaStub)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedSubvindexMap := map[string]SingleColumn{
+		"multisharded_test_subvindex_1": expectedSubvindex1.(SingleColumn),
+		"multisharded_test_subvindex_2": expectedSubvindex2.(SingleColumn),
+	}
+
+	diff = cmp.Diff(multisharded.(*MultiSharded).createdSubvindexes,
+		expectedSubvindexMap, cmp.AllowUnexported(SinglecolStub{}))
 
 	if diff != "" {
 		t.Errorf(
-			"Got unexpected value for multisharded.subvindexes. Expected: %v, Got: %v",
+			"Got unexpected value for multisharded.createdSubvindexes. Expected: %v, Got: %v",
 			expectedSubvindexMap,
-			multisharded.(*MultiSharded).subvindexes)
+			multisharded.(*MultiSharded).createdSubvindexes)
 	}
 }
 
 func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
-	hybridVindexes = map[string]SingleColumn{
-		"etsy_hybrid_DNE":  &HybridStub{},
-		"etsy_hybrid_shop": &HybridStub{},
-	}
-
 	params := map[string]string{
-		"type_id_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
+		"type_id_to_vindex": `{"1":"does_not_exist_1"}`,
 	}
 
-	expectedName := "multisharded_test"
-	_, err := CreateVindex("etsy_multisharded_hybrid", expectedName, params)
+	vindexSchemaStub := map[string]*vschemapb.Vindex{
+		"subvindex_1": &vschemapb.Vindex{
+			Type:   "singlecol_stub",
+			Params: map[string]string{},
+			Owner:  "",
+		},
+		"subvindex_2": &vschemapb.Vindex{
+			Type:   "singlecol_stub",
+			Params: map[string]string{},
+			Owner:  "",
+		},
+		"multisharded_test": &vschemapb.Vindex{
+			Type:   "etsy_multisharded_hybrid",
+			Params: params,
+			Owner:  "",
+		},
+	}
+
+	_, err := CreateVindex(
+		"etsy_multisharded_hybrid",
+		"multisharded_test",
+		params,
+		vindexSchemaStub)
 	if err == nil {
 		t.Errorf("Expected error from multisharded.NewMultiSharded, got nil")
 	}
@@ -98,15 +155,13 @@ func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
 
 func TestMultiShardedMap(t *testing.T) {
 	cases := []struct {
-		name           string
-		typeIdToVindex string
-		rowsColValues  [][]sqltypes.Value
-		expected       []key.Destination
-		shouldErr      bool
+		name          string
+		rowsColValues [][]sqltypes.Value
+		expected      []key.Destination
+		shouldErr     bool
 	}{
 		{
 			"All rows map to same subvindex",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(5)},
@@ -121,7 +176,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Rows map to different subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(2), sqltypes.NewInt64(60)},
@@ -136,7 +190,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Some rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(2), sqltypes.NewInt64(60)},
@@ -147,7 +200,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"No rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(100), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(200), sqltypes.NewInt64(60)},
@@ -158,7 +210,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(-1), sqltypes.NewInt64(100)},
 			},
@@ -167,7 +218,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(-100)},
 			},
@@ -176,7 +226,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("-1"), sqltypes.NewVarChar("100")},
 			},
@@ -185,7 +234,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("-100")},
 			},
@@ -194,7 +242,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"String ids supported",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("1")},
 				{sqltypes.NewVarBinary("2"), sqltypes.NewVarBinary("60")},
@@ -207,14 +254,29 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 	}
 
-	hybridVindexes = buildHybridVindexesForMap()
-
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			multisharded, err := CreateVindex(
 				"etsy_multisharded_hybrid",
 				"multisharded_test",
-				map[string]string{"type_id_to_vindex": c.typeIdToVindex})
+				map[string]string{"type_id_to_vindex": `{"1":"subvindex_a", "2":"subvindex_b"}`},
+				map[string]*vschemapb.Vindex{
+					"subvindex_a": &vschemapb.Vindex{
+						Type:   "singlecol_stub",
+						Params: map[string]string{},
+						Owner:  "",
+					},
+					"subvindex_b": &vschemapb.Vindex{
+						Type:   "singlecol_stub",
+						Params: map[string]string{},
+						Owner:  "",
+					},
+					"multisharded_test": &vschemapb.Vindex{
+						Type:   "etsy_multisharded_hybrid",
+						Params: map[string]string{"type_id_to_vindex": ""},
+						Owner:  "",
+					},
+				})
 
 			if err != nil {
 				t.Fatal(err)
@@ -242,16 +304,14 @@ func TestMultiShardedMap(t *testing.T) {
 
 func TestMultiShardedVerify(t *testing.T) {
 	cases := []struct {
-		name           string
-		typeIdToVindex string
-		rowsColValues  [][]sqltypes.Value
-		ksids          [][]byte
-		expected       []bool
-		shouldErr      bool
+		name          string
+		rowsColValues [][]sqltypes.Value
+		ksids         [][]byte
+		expected      []bool
+		shouldErr     bool
 	}{
 		{
 			"Same subvindex, all ksids map correctly to ids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -267,7 +327,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Same subvindex, some incorrect ksids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -283,7 +342,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Different subvindexes, all ksids map correctly to ids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -299,7 +357,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Different subvindexes, some incorrect ksids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -315,7 +372,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Different subvindexes, no correct ksids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -333,7 +389,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Some rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -349,7 +404,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"No rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(100), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(200), sqltypes.NewInt64(2)},
@@ -365,7 +419,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(-1), sqltypes.NewInt64(1)},
 			},
@@ -377,7 +430,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(-1)},
 			},
@@ -389,7 +441,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("-1"), sqltypes.NewVarChar("1")},
 			},
@@ -401,7 +452,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("-1")},
 			},
@@ -413,7 +463,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"String ids supported",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("1")},
 				{sqltypes.NewVarBinary("1"), sqltypes.NewVarBinary("2")},
@@ -427,14 +476,30 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 	}
 
-	hybridVindexes = buildHybridVindexesForVerify()
-
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			multisharded, err := CreateVindex(
 				"etsy_multisharded_hybrid",
 				"multisharded_test",
-				map[string]string{"type_id_to_vindex": c.typeIdToVindex})
+				map[string]string{"type_id_to_vindex": `{"1":"subvindex_a", "2":"subvindex_b"}`},
+				map[string]*vschemapb.Vindex{
+					"subvindex_a": &vschemapb.Vindex{
+						Type:   "singlecol_stub",
+						Params: map[string]string{},
+						Owner:  "",
+					},
+					"subvindex_b": &vschemapb.Vindex{
+						Type:   "singlecol_stub",
+						Params: map[string]string{},
+						Owner:  "",
+					},
+					"multisharded_test": &vschemapb.Vindex{
+						Type:   "etsy_multisharded_hybrid",
+						Params: map[string]string{"type_id_to_vindex": ""},
+						Owner:  "",
+					},
+				},
+			)
 
 			if err != nil {
 				t.Fatal(err)
@@ -463,34 +528,73 @@ func TestMultiShardedVerify(t *testing.T) {
 func TestMultiShardedCost(t *testing.T) {
 	cases := []struct {
 		name           string
-		costs          []int
+		costs          []string
 		typeIdToVindex string
 		expected       int
 	}{
-		{"No subvindexes", []int{}, `{}`, 0},
-		{"All costs are 0", []int{0, 0, 0}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, 0},
-		{"All costs are 1", []int{1, 1, 1}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, 1},
-		{"Greatest cost is 2", []int{0, 2, 0}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, 2},
+		{
+			"No subvindexes",
+			[]string{"2", "3", "4"},
+			`{}`,
+			0,
+		},
+		{
+			"Only subset of all vindexes in vschema used",
+			[]string{"1", "2", "3"},
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			2,
+		},
+		{
+			"All costs are 0",
+			[]string{"0", "0", "0"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			0,
+		},
+		{
+			"All costs are 1",
+			[]string{"1", "1", "1"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			1,
+		},
+		{
+			"Greatest cost is 2",
+			[]string{"0", "2", "0"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			2,
+		},
 	}
 
 	for _, c := range cases {
-		hybridVindexes = make(map[string]SingleColumn)
 		t.Run(c.name, func(t *testing.T) {
-			// Populate hybridVindexes with stub subvindexes
-			for i, cost := range c.costs {
-				costCopy := cost
-				hybridVindexes[fmt.Sprintf("hybrid%d", i+1)] = &HybridStub{
-					cost: func() int {
-						return costCopy
-					},
-				}
+
+			stubVindexSchema := map[string]*vschemapb.Vindex{
+				"subvindex_a": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"cost": c.costs[0]},
+					Owner:  "",
+				},
+				"subvindex_b": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"cost": c.costs[1]},
+					Owner:  "",
+				},
+				"subvindex_c": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"cost": c.costs[2]},
+					Owner:  "",
+				},
+				"multisharded_test": &vschemapb.Vindex{
+					Type:   "etsy_multisharded_hybrid",
+					Params: map[string]string{"type_id_to_vindex": ""},
+					Owner:  "",
+				},
 			}
 
 			// create multisharded vindex
 			params := map[string]string{
 				"type_id_to_vindex": c.typeIdToVindex,
 			}
-			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
+			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params, stubVindexSchema)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -506,35 +610,74 @@ func TestMultiShardedCost(t *testing.T) {
 
 func TestMultiShardedIsUnique(t *testing.T) {
 	cases := []struct {
-		name            string
-		isUniqueResults []bool
-		typeIdToVindex  string
-		expected        bool
+		name           string
+		isUnique       []string
+		typeIdToVindex string
+		expected       bool
 	}{
-		{"No subvindexes", []bool{}, `{}`, true},
-		{"All subvindexes are unique", []bool{true, true, true}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, true},
-		{"All subvindexes are not unique", []bool{false, false, false}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, false},
-		{"Some subvindexes are unique", []bool{true, false, true}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, false},
+		{
+			"No subvindexes",
+			[]string{"false", "false", "false"},
+			`{}`,
+			true,
+		},
+		{
+			"Only subset of all vindexes in vschema used",
+			[]string{"false", "false", "true"},
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			false,
+		},
+		{
+			"All subvindexes are unique",
+			[]string{"true", "true", "true"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			true,
+		},
+		{
+			"All subvindexes are not unique",
+			[]string{"false", "false", "false"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			false,
+		},
+		{
+			"Some subvindexes are unique",
+			[]string{"true", "false", "true"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			false,
+		},
 	}
 
 	for _, c := range cases {
-		hybridVindexes = make(map[string]SingleColumn)
 		t.Run(c.name, func(t *testing.T) {
-			// Populate hybridVindexes with stub subvindexes
-			for i, isUnique := range c.isUniqueResults {
-				isUniqueCopy := isUnique
-				hybridVindexes[fmt.Sprintf("hybrid%d", i+1)] = &HybridStub{
-					isUnique: func() bool {
-						return isUniqueCopy
-					},
-				}
+
+			stubVindexSchema := map[string]*vschemapb.Vindex{
+				"subvindex_a": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"is_unique": c.isUnique[0]},
+					Owner:  "",
+				},
+				"subvindex_b": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"is_unique": c.isUnique[1]},
+					Owner:  "",
+				},
+				"subvindex_c": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"is_unique": c.isUnique[2]},
+					Owner:  "",
+				},
+				"multisharded_test": &vschemapb.Vindex{
+					Type:   "etsy_multisharded_hybrid",
+					Params: map[string]string{"type_id_to_vindex": ""},
+					Owner:  "",
+				},
 			}
 
 			// create multisharded vindex
 			params := map[string]string{
 				"type_id_to_vindex": c.typeIdToVindex,
 			}
-			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
+			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params, stubVindexSchema)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -550,35 +693,72 @@ func TestMultiShardedIsUnique(t *testing.T) {
 
 func TestMultiShardedNeedsVCursor(t *testing.T) {
 	cases := []struct {
-		name                string
-		needsVCursorResults []bool
-		typeIdToVindex      string
-		expected            bool
+		name           string
+		needsVCursor   []string
+		typeIdToVindex string
+		expected       bool
 	}{
-		{"No subvindexes", []bool{}, `{}`, false},
-		{"No subvindexes need Vcursor", []bool{false, false, false}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, false},
-		{"All subvindexes need Vcursor", []bool{true, true, true}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, true},
-		{"1 subvindex needs Vcursor", []bool{true, false, false}, `{"1":"hybrid1", "2":"hybrid2", "3":"hybrid3"}`, true},
+		{
+			"No subvindexes",
+			[]string{"true", "true", "true"},
+			`{}`,
+			false,
+		},
+		{
+			"Only subset of all vindexes in vschema used",
+			[]string{"false", "false", "true"},
+			`{"1":"subvindex_a", "2":"subvindex_b"}`,
+			false,
+		},
+		{
+			"No subvindexes need Vcursor",
+			[]string{"false", "false", "false"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			false,
+		},
+		{
+			"All subvindexes need Vcursor",
+			[]string{"true", "true", "true"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			true,
+		},
+		{
+			"1 subvindex needs Vcursor",
+			[]string{"true", "false", "false"},
+			`{"1":"subvindex_a", "2":"subvindex_b", "3":"subvindex_c"}`,
+			true,
+		},
 	}
 
 	for _, c := range cases {
-		hybridVindexes = make(map[string]SingleColumn)
 		t.Run(c.name, func(t *testing.T) {
-			// Populate hybridVindexes with stub subvindexes
-			for i, needsVcursor := range c.needsVCursorResults {
-				needsVCursorCopy := needsVcursor
-				hybridVindexes[fmt.Sprintf("hybrid%d", i+1)] = &HybridStub{
-					needsVCursor: func() bool {
-						return needsVCursorCopy
-					},
-				}
+			stubVindexSchema := map[string]*vschemapb.Vindex{
+				"subvindex_a": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"needs_vcursor": c.needsVCursor[0]},
+					Owner:  "",
+				},
+				"subvindex_b": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"needs_vcursor": c.needsVCursor[1]},
+					Owner:  "",
+				},
+				"subvindex_c": &vschemapb.Vindex{
+					Type:   "singlecol_stub",
+					Params: map[string]string{"needs_vcursor": c.needsVCursor[2]},
+					Owner:  "",
+				},
+				"multisharded_test": &vschemapb.Vindex{
+					Type:   "etsy_multisharded_hybrid",
+					Params: map[string]string{"type_id_to_vindex": ""},
+					Owner:  "",
+				},
 			}
-
 			// create multisharded vindex
 			params := map[string]string{
 				"type_id_to_vindex": c.typeIdToVindex,
 			}
-			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params)
+			multisharded, err := CreateVindex("etsy_multisharded_hybrid", "multisharded_test", params, stubVindexSchema)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -593,9 +773,15 @@ func TestMultiShardedNeedsVCursor(t *testing.T) {
 }
 
 // Setup for subvindex stubs
-func buildHybridVindexesForMap() map[string]SingleColumn {
-	hybridVindexes := make(map[string]SingleColumn)
-	hybridVindexes["subvindex_a"] = &HybridStub{
+
+type MockFunctionSet struct {
+	mapFunc    func(ids []sqltypes.Value) ([]key.Destination, error)
+	verifyFunc func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error)
+}
+
+func buildMockFunctions() map[string]MockFunctionSet {
+	mockFunctions := make(map[string]MockFunctionSet)
+	mockFunctions["multisharded_test_subvindex_a"] = MockFunctionSet{
 		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
 			res := make([]key.Destination, 0, len(ids))
 			for _, id := range ids {
@@ -610,32 +796,7 @@ func buildHybridVindexesForMap() map[string]SingleColumn {
 			}
 			return res, nil
 		},
-	}
-
-	hybridVindexes["subvindex_b"] = &HybridStub{
-		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
-			res := make([]key.Destination, 0, len(ids))
-			for _, id := range ids {
-				switch id.ToString() {
-				case "10", "20", "30":
-					res = append(res, key.DestinationKeyspaceID([]byte("100")))
-				case "40", "50", "60":
-					res = append(res, key.DestinationKeyspaceID([]byte("200")))
-				default:
-					res = append(res, key.DestinationNone{})
-				}
-			}
-			return res, nil
-		},
-	}
-
-	return hybridVindexes
-}
-
-func buildHybridVindexesForVerify() map[string]SingleColumn {
-	hybridVindexes := make(map[string]SingleColumn)
-	hybridVindexes["subvindex_a"] = &HybridStub{
-		verify: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+		verifyFunc: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 			res := make([]bool, 0, len(ids))
 			for i, id := range ids {
 				switch id.ToString() {
@@ -659,8 +820,22 @@ func buildHybridVindexesForVerify() map[string]SingleColumn {
 		},
 	}
 
-	hybridVindexes["subvindex_b"] = &HybridStub{
-		verify: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+	mockFunctions["multisharded_test_subvindex_b"] = MockFunctionSet{
+		mapFunc: func(ids []sqltypes.Value) ([]key.Destination, error) {
+			res := make([]key.Destination, 0, len(ids))
+			for _, id := range ids {
+				switch id.ToString() {
+				case "10", "20", "30":
+					res = append(res, key.DestinationKeyspaceID([]byte("100")))
+				case "40", "50", "60":
+					res = append(res, key.DestinationKeyspaceID([]byte("200")))
+				default:
+					res = append(res, key.DestinationNone{})
+				}
+			}
+			return res, nil
+		},
+		verifyFunc: func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
 			res := make([]bool, 0, len(ids))
 			for i, id := range ids {
 				switch id.ToString() {
@@ -684,38 +859,87 @@ func buildHybridVindexesForVerify() map[string]SingleColumn {
 		},
 	}
 
-	return hybridVindexes
+	mockFunctions["multisharded_test_subvindex_c"] = MockFunctionSet{
+		mapFunc:    nil,
+		verifyFunc: nil,
+	}
+	return mockFunctions
 }
 
-type HybridStub struct {
-	cost         func() int
-	isUnique     func() bool
-	needsVCursor func() bool
-	stringFunc   func() string
-	mapFunc      func(ids []sqltypes.Value) ([]key.Destination, error)
-	verify       func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error)
+type SinglecolStub struct {
+	name   string
+	params map[string]string
+
+	costFunc         func() int
+	isUniqueFunc     func() bool
+	needsVCursorFunc func() bool
+	stringFunc       func() string
+	mapFunc          func(ids []sqltypes.Value) ([]key.Destination, error)
+	verifyFunc       func(ids []sqltypes.Value, ksids [][]byte) ([]bool, error)
 }
 
-func (h *HybridStub) Cost() int {
-	return h.cost()
+func NewSinglecolStub(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
+	mockFunctions := buildMockFunctions()
+
+	var costFunc func() int
+	if costStr, ok := m["cost"]; !ok {
+		costFunc = nil
+	} else {
+		costFunc = func() int {
+			cost, _ := strconv.Atoi(costStr)
+			return cost
+		}
+	}
+
+	var isUniqueFunc func() bool
+	if isUniqueStr, ok := m["is_unique"]; !ok {
+		isUniqueFunc = nil
+	} else {
+		isUniqueFunc = func() bool {
+			return isUniqueStr == "true"
+		}
+	}
+
+	var needsVCursorFunc func() bool
+	if needsVCursorStr, ok := m["needs_vcursor"]; !ok {
+		needsVCursorFunc = nil
+	} else {
+		needsVCursorFunc = func() bool {
+			return needsVCursorStr == "true"
+		}
+	}
+
+	return &SinglecolStub{
+		name:             name,
+		params:           m,
+		mapFunc:          mockFunctions[name].mapFunc,
+		verifyFunc:       mockFunctions[name].verifyFunc,
+		costFunc:         costFunc,
+		isUniqueFunc:     isUniqueFunc,
+		needsVCursorFunc: needsVCursorFunc,
+	}, nil
 }
 
-func (h *HybridStub) IsUnique() bool {
-	return h.isUnique()
+func (s *SinglecolStub) Cost() int {
+	return s.costFunc()
 }
 
-func (h *HybridStub) NeedsVCursor() bool {
-	return h.needsVCursor()
+func (s *SinglecolStub) IsUnique() bool {
+	return s.isUniqueFunc()
 }
 
-func (h *HybridStub) String() string {
-	return h.stringFunc()
+func (s *SinglecolStub) NeedsVCursor() bool {
+	return s.needsVCursorFunc()
 }
 
-func (h *HybridStub) Map(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
-	return h.mapFunc(ids)
+func (s *SinglecolStub) String() string {
+	return s.stringFunc()
 }
 
-func (h *HybridStub) Verify(ctx context.Context, vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
-	return h.verify(ids, ksids)
+func (s *SinglecolStub) Map(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]key.Destination, error) {
+	return s.mapFunc(ids)
+}
+
+func (s *SinglecolStub) Verify(ctx context.Context, vcursor VCursor, ids []sqltypes.Value, ksids [][]byte) ([]bool, error) {
+	return s.verifyFunc(ids, ksids)
 }

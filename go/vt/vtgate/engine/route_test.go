@@ -236,7 +236,7 @@ func TestSelectScatter(t *testing.T) {
 }
 
 func TestSelectEqualUnique(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	sel := NewRoute(
 		EqualUnique,
 		&vindexes.Keyspace{
@@ -274,7 +274,7 @@ func TestSelectEqualUnique(t *testing.T) {
 }
 
 func TestSelectNone(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	sel := NewRoute(
 		None,
 		&vindexes.Keyspace{
@@ -330,7 +330,7 @@ func TestSelectEqualUniqueScatter(t *testing.T) {
 		"from":       "from",
 		"to":         "toc",
 		"write_only": "true",
-	})
+	}, nil)
 	sel := NewRoute(
 		EqualUnique,
 		&vindexes.Keyspace{
@@ -372,7 +372,7 @@ func TestSelectEqual(t *testing.T) {
 		"table": "lkp",
 		"from":  "from",
 		"to":    "toc",
-	})
+	}, nil)
 	sel := NewRoute(
 		Equal,
 		&vindexes.Keyspace{
@@ -425,7 +425,7 @@ func TestSelectEqualNoRoute(t *testing.T) {
 		"table": "lkp",
 		"from":  "from",
 		"to":    "toc",
-	})
+	}, nil)
 	sel := NewRoute(
 		Equal,
 		&vindexes.Keyspace{
@@ -485,7 +485,7 @@ func TestSelectEqualNoRoute(t *testing.T) {
 }
 
 func TestINUnique(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	sel := NewRoute(
 		IN,
 		&vindexes.Keyspace{
@@ -534,7 +534,7 @@ func TestINNonUnique(t *testing.T) {
 		"table": "lkp",
 		"from":  "from",
 		"to":    "toc",
-	})
+	}, nil)
 	sel := NewRoute(
 		IN,
 		&vindexes.Keyspace{
@@ -597,7 +597,7 @@ func TestINNonUnique(t *testing.T) {
 }
 
 func TestMultiEqual(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	sel := NewRoute(
 		MultiEqual,
 		&vindexes.Keyspace{
@@ -640,7 +640,7 @@ func TestMultiEqual(t *testing.T) {
 }
 
 func TestSelectLike(t *testing.T) {
-	subshard, _ := vindexes.NewCFC("cfc", map[string]string{"hash": "md5", "offsets": "[1,2]"})
+	subshard, _ := vindexes.NewCFC("cfc", map[string]string{"hash": "md5", "offsets": "[1,2]"}, nil)
 	vindex := subshard.(*vindexes.CFC).PrefixVindex()
 	vc := &loggingVCursor{
 		// we have shards '-0c80', '0c80-0d', '0d-40', '40-80', '80-'
@@ -820,7 +820,7 @@ func TestRouteGetFields(t *testing.T) {
 		"table": "lkp",
 		"from":  "from",
 		"to":    "toc",
-	})
+	}, nil)
 	sel := NewRoute(
 		Equal,
 		&vindexes.Keyspace{
@@ -1452,7 +1452,7 @@ func TestExecFail(t *testing.T) {
 }
 
 func TestSelectEqualUniqueMultiColumnVindex(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	sel := NewRoute(
 		EqualUnique,
 		&vindexes.Keyspace{
@@ -1491,7 +1491,7 @@ func TestSelectEqualUniqueMultiColumnVindex(t *testing.T) {
 }
 
 func TestSelectEqualMultiColumnVindex(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	vc := &loggingVCursor{
 		shards:       []string{"-20", "20-"},
 		shardForKsid: []string{"-20", "20-"},
@@ -1528,7 +1528,7 @@ func TestSelectEqualMultiColumnVindex(t *testing.T) {
 }
 
 func TestINMultiColumnVindex(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	sel := NewRoute(
 		IN,
 		&vindexes.Keyspace{
@@ -1574,7 +1574,7 @@ func TestINMultiColumnVindex(t *testing.T) {
 }
 
 func TestINMixedMultiColumnComparision(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	sel := NewRoute(
 		IN,
 		&vindexes.Keyspace{
@@ -1617,7 +1617,7 @@ func TestINMixedMultiColumnComparision(t *testing.T) {
 }
 
 func TestMultiEqualMultiCol(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	sel := NewRoute(
 		MultiEqual,
 		&vindexes.Keyspace{Name: "ks", Sharded: true},

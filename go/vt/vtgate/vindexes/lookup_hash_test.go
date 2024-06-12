@@ -45,7 +45,7 @@ func TestLookupHashNew(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"write_only": "invalid",
-	})
+	}, nil)
 	want := "write_only value must be 'true' or 'false': 'invalid'"
 	if err == nil || err.Error() != want {
 		t.Errorf("Create(bad_scatter): %v, want %s", err, want)

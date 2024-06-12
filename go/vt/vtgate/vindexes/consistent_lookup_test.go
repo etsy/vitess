@@ -481,7 +481,7 @@ func createConsistentLookup(t *testing.T, name string, writeOnly bool) SingleCol
 		"from":       "fromc1,fromc2",
 		"to":         "toc",
 		"write_only": write,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

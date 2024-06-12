@@ -25,6 +25,7 @@ import (
 	"os"
 	"strconv"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -51,7 +52,7 @@ func init() {
 }
 
 // NewNumericStaticMap creates a NumericStaticMap vindex.
-func NewNumericStaticMap(name string, params map[string]string) (Vindex, error) {
+func NewNumericStaticMap(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	jsonPath, ok := params["json_path"]
 	if !ok {
 		return nil, errors.New("NumericStaticMap: Could not find `json_path` param in vschema")

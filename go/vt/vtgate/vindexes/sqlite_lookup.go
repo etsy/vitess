@@ -29,6 +29,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/stats"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 
 	_ "github.com/mattn/go-sqlite3" // sqlite driver
 )
@@ -81,7 +82,7 @@ type SqliteLookupUnique struct {
 //
 // As writes cannot be distributed across all vtgate machines, and writes must obtain
 // locks on the sqlite db, SQLite lookups are always read only
-func NewSqliteLookupUnique(name string, m map[string]string) (Vindex, error) {
+func NewSqliteLookupUnique(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	slu := &SqliteLookupUnique{name: name}
 	slu.path = m["path"]
 	slu.table = m["table"]

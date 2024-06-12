@@ -23,6 +23,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 )
 
@@ -38,7 +39,7 @@ func init() {
 type MultiSharded struct {
 	name                  string
 	typeIdToSubvindexName map[string]string
-	subvindexes           map[string]SingleColumn
+	createdSubvindexes    map[string]SingleColumn
 }
 
 // NewMultiSharded creates a multicolumn vindex that
@@ -49,29 +50,45 @@ type MultiSharded struct {
 // The expected order of columns passed to the MultiSharded vindex is
 // type_id (which maps to a hybrid vindex type), followed by the identifier
 // that will be used by the hybrid vindex to resolve to a keyspace id
-func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
+func NewMultiSharded(name string, m map[string]string, ksVindexesSchemaInfo map[string]*vschemapb.Vindex) (Vindex, error) {
 
-	var typeIdToSubvindexName map[string]string
-	err := json.Unmarshal([]byte(m["type_id_to_vindex"]), &typeIdToSubvindexName)
+	var typeIdToVindexFromVschema map[string]string
+	err := json.Unmarshal([]byte(m["type_id_to_vindex"]), &typeIdToVindexFromVschema)
 	if err != nil {
 		return nil, err
 	}
 
-	subvindexes := make(map[string]SingleColumn)
-	for _, vindexName := range typeIdToSubvindexName {
-		// Only hybrid vindexes defined above this etsy_multisharded_hybrid vindex in the vschema,
-		// and therefore initialized before this vschema, will be avaiable in `hybridVindexes`.
-		if _, ok := hybridVindexes[vindexName]; ok {
-			subvindexes[vindexName] = hybridVindexes[vindexName]
+	// The type_id_to_vindex param refers to subvindexes by the names under which they will be created
+	// Since NewMultiSharded() creates duplicate vindexes, we'll need to assign each name that's unique to
+	// this MultiSharded vindex instance to avoid naming collisions
+	typeIdToSubvindexName := map[string]string{}
+	for id, vindexName := range typeIdToVindexFromVschema {
+		typeIdToSubvindexName[id] = name + "_" + vindexName
+	}
+
+	createdSubvindexes := make(map[string]SingleColumn)
+
+	for id, vindexName := range typeIdToVindexFromVschema {
+
+		if subvindexSchema, ok := ksVindexesSchemaInfo[vindexName]; ok {
+			subvindex, err := CreateVindex(subvindexSchema.Type, typeIdToSubvindexName[id], subvindexSchema.Params, ksVindexesSchemaInfo)
+			if err != nil {
+				return nil, err
+			}
+			if _, ok := subvindex.(SingleColumn); !ok {
+				return nil, fmt.Errorf("Multisharded.NewMultisharded: Only SingleColumn subvindexes are supported. %s is not a SingleColumn vindex", vindexName)
+			}
+
+			createdSubvindexes[typeIdToSubvindexName[id]] = subvindex.(SingleColumn)
 		} else {
-			return nil, fmt.Errorf("Multisharded.NewMultisharded: No hybrid vindex named %s has been defined", vindexName)
+			return nil, fmt.Errorf("Multisharded.NewMultisharded: No subvindex named %s has been defined in the vschema.json", vindexName)
 		}
 	}
 
 	return &MultiSharded{
 		name:                  name,
 		typeIdToSubvindexName: typeIdToSubvindexName,
-		subvindexes:           subvindexes,
+		createdSubvindexes:    createdSubvindexes,
 	}, nil
 }
 
@@ -81,10 +98,7 @@ func (m *MultiSharded) String() string {
 
 func (m *MultiSharded) Cost() int {
 	cost := 0
-	for _, subvindex := range m.subvindexes {
-		if subvindex == nil {
-			continue
-		}
+	for _, subvindex := range m.createdSubvindexes {
 		subvindexCost := subvindex.Cost()
 		if subvindexCost > cost {
 			cost = subvindexCost
@@ -94,11 +108,7 @@ func (m *MultiSharded) Cost() int {
 }
 
 func (m *MultiSharded) IsUnique() bool {
-	for _, subvindex := range m.subvindexes {
-		if subvindex == nil {
-			continue
-		}
-
+	for _, subvindex := range m.createdSubvindexes {
 		if !subvindex.IsUnique() {
 			return false
 		}
@@ -107,11 +117,7 @@ func (m *MultiSharded) IsUnique() bool {
 }
 
 func (m *MultiSharded) NeedsVCursor() bool {
-	for _, subvindex := range m.subvindexes {
-		if subvindex == nil {
-			continue
-		}
-
+	for _, subvindex := range m.createdSubvindexes {
 		if subvindex.NeedsVCursor() {
 			return true
 		}
@@ -136,7 +142,7 @@ func (m *MultiSharded) Map(ctx context.Context, vcursor VCursor, rowsColValues [
 		for _, colValue := range colValues {
 			ids = append(ids, colValue[1])
 		}
-		res, err := m.subvindexes[subvindexName].Map(ctx, vcursor, ids)
+		res, err := m.createdSubvindexes[subvindexName].Map(ctx, vcursor, ids)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +199,7 @@ func (m *MultiSharded) Verify(ctx context.Context, vcursor VCursor, rowsColValue
 		for _, colValue := range colValues {
 			ids = append(ids, colValue[1])
 		}
-		res, err := m.subvindexes[subvindexName].Verify(ctx, vcursor, ids, subvindexKsids)
+		res, err := m.createdSubvindexes[subvindexName].Verify(ctx, vcursor, ids, subvindexKsids)
 		if err != nil {
 			return nil, err
 		}

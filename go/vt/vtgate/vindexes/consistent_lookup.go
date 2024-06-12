@@ -30,6 +30,7 @@ import (
 	"vitess.io/vitess/go/vt/key"
 	querypb "vitess.io/vitess/go/vt/proto/query"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/proto/vtgate"
 	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 	"vitess.io/vitess/go/vt/sqlparser"
@@ -63,7 +64,7 @@ type ConsistentLookup struct {
 //	table: name of the backing table. It can be qualified by the keyspace.
 //	from: list of columns in the table that have the 'from' values of the lookup vindex.
 //	to: The 'to' column name of the table.
-func NewConsistentLookup(name string, m map[string]string) (Vindex, error) {
+func NewConsistentLookup(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	clc, err := newCLCommon(name, m)
 	if err != nil {
 		return nil, err
@@ -163,7 +164,7 @@ type ConsistentLookupUnique struct {
 //	table: name of the backing table. It can be qualified by the keyspace.
 //	from: list of columns in the table that have the 'from' values of the lookup vindex.
 //	to: The 'to' column name of the table.
-func NewConsistentLookupUnique(name string, m map[string]string) (Vindex, error) {
+func NewConsistentLookupUnique(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	clc, err := newCLCommon(name, m)
 	if err != nil {
 		return nil, err

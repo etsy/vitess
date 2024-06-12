@@ -27,6 +27,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 )
 
@@ -67,7 +68,7 @@ type LookupUnicodeLooseMD5Hash struct {
 //
 //	autocommit: setting this to "true" will cause inserts to upsert and deletes to be ignored.
 //	write_only: in this mode, Map functions return the full keyrange causing a full scatter.
-func NewLookupUnicodeLooseMD5Hash(name string, m map[string]string) (Vindex, error) {
+func NewLookupUnicodeLooseMD5Hash(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	lh := &LookupUnicodeLooseMD5Hash{name: name}
 
 	cc, err := parseCommonConfig(m)
@@ -289,7 +290,7 @@ type LookupUnicodeLooseMD5HashUnique struct {
 //
 //	autocommit: setting this to "true" will cause deletes to be ignored.
 //	write_only: in this mode, Map functions return the full keyrange causing a full scatter.
-func NewLookupUnicodeLooseMD5HashUnique(name string, m map[string]string) (Vindex, error) {
+func NewLookupUnicodeLooseMD5HashUnique(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	lhu := &LookupUnicodeLooseMD5HashUnique{name: name}
 
 	cc, err := parseCommonConfig(m)

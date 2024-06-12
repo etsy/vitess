@@ -33,7 +33,7 @@ import (
 func createVindex() (SingleColumn, error) {
 	m := make(map[string]string)
 	m["json_path"] = "testdata/numeric_static_map_test.json"
-	vindex, err := CreateVindex("numeric_static_map", "numericStaticMap", m)
+	vindex, err := CreateVindex("numeric_static_map", "numericStaticMap", m, nil)
 	if err != nil {
 		panic(err)
 	}

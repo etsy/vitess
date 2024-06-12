@@ -25,6 +25,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
 
 var (
@@ -39,7 +40,7 @@ type XXHash struct {
 }
 
 // NewXXHash creates a new XXHash.
-func NewXXHash(name string, _ map[string]string) (Vindex, error) {
+func NewXXHash(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &XXHash{name: name}, nil
 }
 

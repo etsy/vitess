@@ -40,7 +40,7 @@ func TestLookupHashUniqueNew(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"write_only": "true",
-	})
+	}, nil)
 	l = vindex.(SingleColumn)
 	if want, got := l.(*LookupHashUnique).writeOnly, true; got != want {
 		t.Errorf("Create(lookup, false): %v, want %v", got, want)
@@ -51,7 +51,7 @@ func TestLookupHashUniqueNew(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"write_only": "invalid",
-	})
+	}, nil)
 	want := "write_only value must be 'true' or 'false': 'invalid'"
 	if err == nil || err.Error() != want {
 		t.Errorf("Create(bad_scatter): %v, want %s", err, want)

@@ -86,7 +86,7 @@ func TestOperator(t *testing.T) {
 	require.NoError(t, err)
 	r := bufio.NewReader(fd)
 
-	hash, _ := vindexes.NewHash("user_index", map[string]string{})
+	hash, _ := vindexes.NewHash("user_index", map[string]string{}, nil)
 	si := &semantics.FakeSI{VindexTables: map[string]vindexes.Vindex{"user_index": hash}}
 	lcr := &lineCountingReader{r: r}
 	for {

@@ -24,6 +24,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/proto/vtrpc"
 	"vitess.io/vitess/go/vt/vterrors"
 )
@@ -94,7 +95,7 @@ type CFC struct {
 }
 
 // NewCFC creates a new CFC vindex
-func NewCFC(name string, params map[string]string) (Vindex, error) {
+func NewCFC(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	// CFC is used in all compare expressions other than 'LIKE'.
 	ss := &CFC{
 		name: name,

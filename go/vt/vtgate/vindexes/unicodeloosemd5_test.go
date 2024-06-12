@@ -30,7 +30,7 @@ import (
 var charVindexMD5 SingleColumn
 
 func init() {
-	vindex, _ := CreateVindex("unicode_loose_md5", "utf8ch", nil)
+	vindex, _ := CreateVindex("unicode_loose_md5", "utf8ch", nil, nil)
 	charVindexMD5 = vindex.(SingleColumn)
 }
 

@@ -58,7 +58,7 @@ func (*cheapVindex) Map(ctx context.Context, vcursor VCursor, ids []sqltypes.Val
 	return nil, nil
 }
 
-func NewCheapVindex(name string, params map[string]string) (Vindex, error) {
+func NewCheapVindex(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &cheapVindex{name: name, Params: params}, nil
 }
 
@@ -81,7 +81,7 @@ func (*stFU) Map(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]
 	return nil, nil
 }
 
-func NewSTFU(name string, params map[string]string) (Vindex, error) {
+func NewSTFU(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &stFU{name: name, Params: params}, nil
 }
 
@@ -104,7 +104,7 @@ func (*stFN) Map(ctx context.Context, vcursor VCursor, ids []sqltypes.Value) ([]
 	return nil, nil
 }
 
-func NewSTFN(name string, params map[string]string) (Vindex, error) {
+func NewSTFN(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &stFN{name: name, Params: params}, nil
 }
 
@@ -132,7 +132,7 @@ func (*stLN) Update(context.Context, VCursor, []sqltypes.Value, []byte, []sqltyp
 	return nil
 }
 
-func NewSTLN(name string, params map[string]string) (Vindex, error) {
+func NewSTLN(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &stLN{name: name, Params: params}, nil
 }
 
@@ -161,7 +161,7 @@ func (*stLU) Update(context.Context, VCursor, []sqltypes.Value, []byte, []sqltyp
 	return nil
 }
 
-func NewSTLU(name string, params map[string]string) (Vindex, error) {
+func NewSTLU(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &stLU{name: name, Params: params}, nil
 }
 
@@ -199,7 +199,7 @@ func (v *stLO) SetOwnerInfo(keyspace, table string, cols []sqlparser.IdentifierC
 	return nil
 }
 
-func NewSTLO(name string, _ map[string]string) (Vindex, error) {
+func NewSTLO(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &stLO{name: name}, nil
 }
 
@@ -224,7 +224,7 @@ func (*mcFU) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltype
 }
 func (*mcFU) PartialVindex() bool { return false }
 
-func NewMCFU(name string, params map[string]string) (Vindex, error) {
+func NewMCFU(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &mcFU{name: name, Params: params}, nil
 }
 
@@ -2568,7 +2568,7 @@ func TestVSchemaJSON(t *testing.T) {
 		"from":  "f",
 		"table": "t",
 		"to":    "2",
-	})
+	}, nil)
 	in := map[string]*KeyspaceSchema{
 		"unsharded": {
 			Keyspace: &Keyspace{

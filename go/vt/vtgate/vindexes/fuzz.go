@@ -120,7 +120,7 @@ func FuzzVindex(data []byte) int {
 	params["region_map"] = createdFile
 
 	// Create the vindex
-	l, err := CreateVindex(targetVindex, targetVindex, params)
+	l, err := CreateVindex(targetVindex, targetVindex, params, nil, nil)
 	if err != nil {
 		return 0
 	}

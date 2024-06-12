@@ -22,6 +22,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
 
 var (
@@ -40,7 +41,7 @@ type Null struct {
 }
 
 // NewNull creates a new Null.
-func NewNull(name string, m map[string]string) (Vindex, error) {
+func NewNull(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &Null{name: name}, nil
 }
 

@@ -25,6 +25,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	vtrpcpb "vitess.io/vitess/go/vt/proto/vtrpc"
 	"vitess.io/vitess/go/vt/vterrors"
 )
@@ -47,7 +48,7 @@ const (
 )
 
 // NewMultiCol creates a new MultiCol.
-func NewMultiCol(name string, m map[string]string) (Vindex, error) {
+func NewMultiCol(name string, m map[string]string, ksVindexesSchemaInfo map[string]*vschemapb.Vindex) (Vindex, error) {
 	colCount, err := getColumnCount(m)
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func NewMultiCol(name string, m map[string]string) (Vindex, error) {
 	if err != nil {
 		return nil, err
 	}
-	columnVdx, vindexCost, err := getColumnVindex(m, colCount)
+	columnVdx, vindexCost, err := getColumnVindex(m, colCount, ksVindexesSchemaInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +154,7 @@ func init() {
 	Register("multicol", NewMultiCol)
 }
 
-func getColumnVindex(m map[string]string, colCount int) (map[int]Hashing, int, error) {
+func getColumnVindex(m map[string]string, colCount int, ksVindexesSchemaInfo map[string]*vschemapb.Vindex) (map[int]Hashing, int, error) {
 	var colVdxs []string
 	colVdxsStr, ok := m[paramColumnVindex]
 	if ok {
@@ -173,7 +174,7 @@ func getColumnVindex(m map[string]string, colCount int) (map[int]Hashing, int, e
 			}
 		}
 		// TODO: reuse vindex. avoid creating same vindex.
-		vdx, err := CreateVindex(selVdx, selVdx, m)
+		vdx, err := CreateVindex(selVdx, selVdx, m, ksVindexesSchemaInfo)
 		if err != nil {
 			return nil, 0, err
 		}

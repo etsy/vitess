@@ -26,6 +26,7 @@ import (
 	"vitess.io/vitess/go/vt/vterrors"
 
 	querypb "vitess.io/vitess/go/vt/proto/query"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 	vtrpcpb "vitess.io/vitess/go/vt/proto/vtrpc"
 )
@@ -160,7 +161,9 @@ type (
 	// A NewVindexFunc is a function that creates a Vindex based on the
 	// properties specified in the input map. Every vindex must
 	// register a NewVindexFunc under a unique vindexType.
-	NewVindexFunc func(string, map[string]string) (Vindex, error)
+	// A vschemapb.Vindex struct is passed in so that a vindex can access vschema data
+	// for other vindexes
+	NewVindexFunc func(string, map[string]string, map[string]*vschemapb.Vindex) (Vindex, error)
 )
 
 var registry = make(map[string]NewVindexFunc)
@@ -178,12 +181,12 @@ func Register(vindexType string, newVindexFunc NewVindexFunc) {
 
 // CreateVindex creates a vindex of the specified type using the
 // supplied params. The type must have been previously registered.
-func CreateVindex(vindexType, name string, params map[string]string) (Vindex, error) {
+func CreateVindex(vindexType, name string, params map[string]string, ksVindexesSchemaInfo map[string]*vschemapb.Vindex) (Vindex, error) {
 	f, ok := registry[vindexType]
 	if !ok {
 		return nil, fmt.Errorf("vindexType %q not found", vindexType)
 	}
-	return f(name, params)
+	return f(name, params, ksVindexesSchemaInfo)
 }
 
 // Map invokes the Map implementation supplied by the vindex.

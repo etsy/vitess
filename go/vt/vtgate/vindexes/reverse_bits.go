@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math/bits"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -43,7 +44,7 @@ type ReverseBits struct {
 }
 
 // NewReverseBits creates a new ReverseBits.
-func NewReverseBits(name string, m map[string]string) (Vindex, error) {
+func NewReverseBits(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &ReverseBits{name: name}, nil
 }
 

@@ -24,6 +24,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 )
 
@@ -178,7 +179,7 @@ func (ln *LookupNonUnique) Query() (selQuery string, arguments []string) {
 //
 //	autocommit: setting this to "true" will cause inserts to upsert and deletes to be ignored.
 //	write_only: in this mode, Map functions return the full keyrange causing a full scatter.
-func NewLookup(name string, m map[string]string) (Vindex, error) {
+func NewLookup(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	lookup := &LookupNonUnique{name: name}
 
 	cc, err := parseCommonConfig(m)
@@ -236,7 +237,7 @@ func (lu *LookupUnique) AllowBatch() bool {
 //
 //	autocommit: setting this to "true" will cause deletes to be ignored.
 //	write_only: in this mode, Map functions return the full keyrange causing a full scatter.
-func NewLookupUnique(name string, m map[string]string) (Vindex, error) {
+func NewLookupUnique(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	lu := &LookupUnique{name: name}
 
 	cc, err := parseCommonConfig(m)

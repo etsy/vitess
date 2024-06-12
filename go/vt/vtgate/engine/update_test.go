@@ -69,7 +69,7 @@ func TestUpdateUnsharded(t *testing.T) {
 }
 
 func TestUpdateEqual(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	upd := &Update{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -100,7 +100,7 @@ func TestUpdateEqual(t *testing.T) {
 }
 
 func TestUpdateEqualMultiCol(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	upd := &Update{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -126,7 +126,7 @@ func TestUpdateEqualMultiCol(t *testing.T) {
 }
 
 func TestUpdateScatter(t *testing.T) {
-	vindex, _ := vindexes.NewHash("", nil)
+	vindex, _ := vindexes.NewHash("", nil, nil)
 	upd := &Update{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -183,7 +183,7 @@ func TestUpdateEqualNoRoute(t *testing.T) {
 		"table": "lkp",
 		"from":  "from",
 		"to":    "toc",
-	})
+	}, nil)
 	upd := &Update{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -216,7 +216,7 @@ func TestUpdateEqualNoScatter(t *testing.T) {
 		"from":       "from",
 		"to":         "toc",
 		"write_only": "true",
-	})
+	}, nil)
 	upd := &Update{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{
@@ -891,7 +891,7 @@ func TestUpdateInChangedVindexMultiCol(t *testing.T) {
 }
 
 func TestUpdateEqualSubshard(t *testing.T) {
-	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"})
+	vindex, _ := vindexes.NewRegionExperimental("", map[string]string{"region_bytes": "1"}, nil)
 	upd := &Update{
 		DML: &DML{
 			RoutingParameters: &RoutingParameters{

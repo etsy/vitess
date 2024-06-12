@@ -124,7 +124,7 @@ func TestLookupNonUniqueNew(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"write_only": "invalid",
-	})
+	}, nil)
 	require.EqualError(t, err, "write_only value must be 'true' or 'false': 'invalid'")
 }
 
@@ -182,7 +182,7 @@ func TestLookupNonUniqueMapAutocommit(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	require.NoError(t, err)
 	lookupNonUnique := vindex.(SingleColumn)
 	vc := &vcursor{numRows: 2}
@@ -287,7 +287,7 @@ func TestLookupNonUniqueVerifyAutocommit(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	require.NoError(t, err)
 	lookupNonUnique := vindex.(SingleColumn)
 	vc := &vcursor{numRows: 1}
@@ -373,7 +373,7 @@ func TestLookupNonUniqueCreateAutocommit(t *testing.T) {
 		"from":       "from1,from2",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	require.NoError(t, err)
 	vc := &vcursor{}
 
@@ -438,7 +438,7 @@ func TestLookupNonUniqueDeleteAutocommit(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	vc := &vcursor{}
 
 	err := lookupNonUnique.(Lookup).Delete(context.Background(), vc, [][]sqltypes.Value{{sqltypes.NewInt64(1)}, {sqltypes.NewInt64(2)}}, []byte("test"))
@@ -526,7 +526,7 @@ func TestLookupNonUniqueCreateMultiShardAutocommit(t *testing.T) {
 		"from":                   "from1,from2",
 		"to":                     "toc",
 		"multi_shard_autocommit": "true",
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	vc := &vcursor{}
@@ -563,7 +563,7 @@ func createLookup(t *testing.T, name string, writeOnly bool) SingleColumn {
 		"from":       "fromc",
 		"to":         "toc",
 		"write_only": write,
-	})
+	}, nil)
 	require.NoError(t, err)
 	return l.(SingleColumn)
 }

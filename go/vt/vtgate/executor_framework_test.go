@@ -26,6 +26,7 @@ import (
 
 	"vitess.io/vitess/go/vt/vtgate/logstats"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 
 	"github.com/stretchr/testify/require"
@@ -387,7 +388,7 @@ func (*keyRangeLookuper) Map(ctx context.Context, vcursor vindexes.VCursor, ids 
 	}, nil
 }
 
-func newKeyRangeLookuper(name string, params map[string]string) (vindexes.Vindex, error) {
+func newKeyRangeLookuper(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &keyRangeLookuper{}, nil
 }
 
@@ -412,7 +413,7 @@ func (*keyRangeLookuperUnique) Map(ctx context.Context, vcursor vindexes.VCursor
 	}, nil
 }
 
-func newKeyRangeLookuperUnique(name string, params map[string]string) (vindexes.Vindex, error) {
+func newKeyRangeLookuperUnique(name string, params map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &keyRangeLookuperUnique{}, nil
 }
 

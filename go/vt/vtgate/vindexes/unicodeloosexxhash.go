@@ -23,6 +23,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
 
 var (
@@ -40,7 +41,7 @@ type UnicodeLooseXXHash struct {
 }
 
 // NewUnicodeLooseXXHash creates a new UnicodeLooseXXHash struct.
-func NewUnicodeLooseXXHash(name string, _ map[string]string) (Vindex, error) {
+func NewUnicodeLooseXXHash(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &UnicodeLooseXXHash{name: name}, nil
 }
 

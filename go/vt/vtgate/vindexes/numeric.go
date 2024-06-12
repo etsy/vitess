@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -41,7 +42,7 @@ type Numeric struct {
 }
 
 // NewNumeric creates a Numeric vindex.
-func NewNumeric(name string, _ map[string]string) (Vindex, error) {
+func NewNumeric(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &Numeric{name: name}, nil
 }
 

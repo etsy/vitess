@@ -250,7 +250,7 @@ func buildKeyspaces(source *vschemapb.SrvVSchema, vschema *VSchema) {
 func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSchema) error {
 	keyspace := ksvschema.Keyspace
 	for vname, vindexInfo := range ks.Vindexes {
-		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
+		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params, ks.Vindexes)
 		if err != nil {
 			return err
 		}

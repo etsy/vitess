@@ -23,6 +23,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
 
 var (
@@ -37,7 +38,7 @@ type Binary struct {
 }
 
 // NewBinary creates a new Binary.
-func NewBinary(name string, _ map[string]string) (Vindex, error) {
+func NewBinary(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &Binary{name: name}, nil
 }
 

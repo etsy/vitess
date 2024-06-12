@@ -86,7 +86,7 @@ func TestLookupUnicodeLooseMD5HashMapAutocommit(t *testing.T) {
 		"to":         "toc",
 		"hash_from":  "true",
 		"autocommit": "true",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestLookupUnicodeLooseMD5HashVerifyAutocommit(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func TestLookupUnicodeLooseMD5HashCreateAutocommit(t *testing.T) {
 		"from":       "from1,from2",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestLookupUnicodeLooseMD5HashCreateMultiShardAutocommit(t *testing.T) {
 		"from":                   "from1,from2",
 		"to":                     "toc",
 		"multi_shard_autocommit": "true",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +422,7 @@ func TestLookupUnicodeLooseMD5HashDeleteAutocommit(t *testing.T) {
 		"from":       "fromc",
 		"to":         "toc",
 		"autocommit": "true",
-	})
+	}, nil)
 	vc := &vcursor{}
 
 	err := lookupNonUnique.(Lookup).Delete(context.Background(), vc, [][]sqltypes.Value{{sqltypes.NewInt64(10)}, {sqltypes.NewInt64(20)}}, []byte("\x16k@\xb4J\xbaK\xd6"))

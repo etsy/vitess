@@ -69,7 +69,7 @@ func (*hashIndex) Map(ctx context.Context, vcursor vindexes.VCursor, ids []sqlty
 	return nil, nil
 }
 
-func newHashIndex(name string, _ map[string]string) (vindexes.Vindex, error) {
+func newHashIndex(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &hashIndex{name: name}, nil
 }
 
@@ -96,7 +96,7 @@ func (*lookupIndex) Update(context.Context, vindexes.VCursor, []sqltypes.Value, 
 	return nil
 }
 
-func newLookupIndex(name string, _ map[string]string) (vindexes.Vindex, error) {
+func newLookupIndex(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &lookupIndex{name: name}, nil
 }
 
@@ -133,7 +133,7 @@ func (*nameLkpIndex) MapResult([]sqltypes.Value, []*sqltypes.Result) ([]key.Dest
 	return nil, nil
 }
 
-func newNameLkpIndex(name string, _ map[string]string) (vindexes.Vindex, error) {
+func newNameLkpIndex(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &nameLkpIndex{name: name}, nil
 }
 
@@ -164,7 +164,7 @@ func (*costlyIndex) Update(context.Context, vindexes.VCursor, []sqltypes.Value, 
 	return nil
 }
 
-func newCostlyIndex(name string, _ map[string]string) (vindexes.Vindex, error) {
+func newCostlyIndex(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &costlyIndex{name: name}, nil
 }
 
@@ -176,7 +176,7 @@ type multiColIndex struct {
 	name string
 }
 
-func newMultiColIndex(name string, _ map[string]string) (vindexes.Vindex, error) {
+func newMultiColIndex(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (vindexes.Vindex, error) {
 	return &multiColIndex{name: name}, nil
 }
 

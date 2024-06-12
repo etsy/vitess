@@ -23,6 +23,7 @@ import (
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 )
 
 var (
@@ -36,7 +37,7 @@ type BinaryMD5 struct {
 }
 
 // NewBinaryMD5 creates a new BinaryMD5.
-func NewBinaryMD5(name string, _ map[string]string) (Vindex, error) {
+func NewBinaryMD5(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &BinaryMD5{name: name}, nil
 }
 

@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"strconv"
 
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	"vitess.io/vitess/go/vt/vtgate/evalengine"
 
 	"vitess.io/vitess/go/sqltypes"
@@ -48,7 +49,7 @@ type Hash struct {
 }
 
 // NewHash creates a new Hash.
-func NewHash(name string, _ map[string]string) (Vindex, error) {
+func NewHash(name string, _ map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	return &Hash{name: name}, nil
 }
 

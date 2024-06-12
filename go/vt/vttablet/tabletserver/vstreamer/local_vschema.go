@@ -62,7 +62,12 @@ func (lvs *localVSchema) FindOrCreateVindex(qualifiedName string) (vindexes.Vind
 	if keyspace != "" {
 		return nil, fmt.Errorf("vindex %v not found", qualifiedName)
 	}
-	return vindexes.CreateVindex(name, name, map[string]string{})
+
+	// TODO This call to CreateVindex only supports the subset of vindexes that take empty parameters.
+	// None of this subset of vindexes needs access to other vindexes' vschema configs.
+	// If they do in the future, pass in the ksVindexesSchemaInfo argument
+	// For now, nil is passed.
+	return vindexes.CreateVindex(name, name, map[string]string{}, nil)
 }
 
 func (lvs *localVSchema) findTable(tablename string) (*vindexes.Table, error) {

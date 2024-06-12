@@ -26,6 +26,7 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
 	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
+	vschemapb "vitess.io/vitess/go/vt/proto/vschema"
 	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 )
 
@@ -66,7 +67,7 @@ type LookupHash struct {
 //
 //	autocommit: setting this to "true" will cause inserts to upsert and deletes to be ignored.
 //	write_only: in this mode, Map functions return the full keyrange causing a full scatter.
-func NewLookupHash(name string, m map[string]string) (Vindex, error) {
+func NewLookupHash(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	lh := &LookupHash{name: name}
 
 	cc, err := parseCommonConfig(m)
@@ -263,7 +264,7 @@ var _ LookupPlanable = (*LookupHashUnique)(nil)
 //
 //	autocommit: setting this to "true" will cause deletes to be ignored.
 //	write_only: in this mode, Map functions return the full keyrange causing a full scatter.
-func NewLookupHashUnique(name string, m map[string]string) (Vindex, error) {
+func NewLookupHashUnique(name string, m map[string]string, _ map[string]*vschemapb.Vindex) (Vindex, error) {
 	lhu := &LookupHashUnique{name: name}
 
 	cc, err := parseCommonConfig(m)
