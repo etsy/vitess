@@ -249,22 +249,22 @@ func buildKeyspaces(source *vschemapb.SrvVSchema, vschema *VSchema) {
 
 func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSchema) error {
 	keyspace := ksvschema.Keyspace
-	for vname, vindexInfo := range ks.Vindexes {
-		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
-		if err != nil {
-			return err
-		}
 
-		// If the keyspace requires explicit routing, don't include it in global routing
-		if !ks.RequireExplicitRouting {
-			if _, ok := vschema.uniqueVindexes[vname]; ok {
-				vschema.uniqueVindexes[vname] = nil
-			} else {
-				vschema.uniqueVindexes[vname] = vindex
-			}
-		}
-		ksvschema.Vindexes[vname] = vindex
+	// CreateVindex will fail if it attempts to create a vindex that depends on another subvindex's existence
+	// and the subvindex has not been created yet.
+	// Store a map of failed vindexes so we can retry them once all other vindexes are created.
+	// Note that this only allows for one layer of dependency between vindexes (failed vindexes are only retried once)
+	vindexesToRetry := map[string]*vschemapb.Vindex{}
+	err := buildVindexes(ks.Vindexes, ks.RequireExplicitRouting, vschema, ksvschema, vindexesToRetry)
+	if err != nil {
+		return err
 	}
+	// Retry vindexes that failed due to missing subvindexes
+	err = buildVindexes(vindexesToRetry, ks.RequireExplicitRouting, vschema, ksvschema, nil)
+	if err != nil {
+		return err
+	}
+
 	for tname, table := range ks.Tables {
 		t := &Table{
 			Name:                    sqlparser.NewIdentifierCS(tname),
@@ -399,6 +399,32 @@ func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSc
 			}
 		}
 		ksvschema.Tables[tname] = t
+	}
+	return nil
+}
+
+func buildVindexes(vindexes map[string]*vschemapb.Vindex, requireExplicitRouting bool, vschema *VSchema, ksvschema *KeyspaceSchema, vindexesToRetry map[string]*vschemapb.Vindex) error {
+	shouldRetry := vindexesToRetry != nil
+	for vname, vindexInfo := range vindexes {
+		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
+		if err != nil {
+			if _, ok := err.(*MissingSubvindexError); ok && shouldRetry {
+				vindexesToRetry[vname] = vindexInfo
+				continue
+			} else {
+				return err
+			}
+		}
+
+		// If the keyspace requires explicit routing, don't include it in global routing
+		if !requireExplicitRouting {
+			if _, ok := vschema.uniqueVindexes[vname]; ok {
+				vschema.uniqueVindexes[vname] = nil
+			} else {
+				vschema.uniqueVindexes[vname] = vindex
+			}
+		}
+		ksvschema.Vindexes[vname] = vindex
 	}
 	return nil
 }

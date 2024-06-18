@@ -203,6 +203,38 @@ func NewSTLO(name string, _ map[string]string) (Vindex, error) {
 	return &stLO{name: name}, nil
 }
 
+// stFUE is a single-column Functional, Unique Vindex that conditionally errs when instantiated.
+// Used for testing retry logic in BuildTables()
+type stFUE struct {
+	name   string
+	Params map[string]string
+}
+
+func (v *stFUE) String() string   { return v.name }
+func (*stFUE) Cost() int          { return 1 }
+func (*stFUE) IsUnique() bool     { return true }
+func (*stFUE) NeedsVCursor() bool { return false }
+func (*stFUE) Verify(context.Context, VCursor, [][]sqltypes.Value, [][]byte) ([]bool, error) {
+	return []bool{}, nil
+}
+func (*stFUE) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
+	return nil, nil
+}
+func (*stFUE) PartialVindex() bool { return false }
+
+// Allows stfue vindex to err on the first CreateVindex call,
+// But succeed on retry
+var stfueShouldErr bool
+var stfueErr error
+
+func NewSTFUE(name string, params map[string]string) (Vindex, error) {
+	if stfueShouldErr {
+		stfueShouldErr = false
+		return nil, stfueErr
+	}
+	return &stFUE{name: name, Params: params}, nil
+}
+
 var _ SingleColumn = (*stLO)(nil)
 var _ Lookup = (*stLO)(nil)
 
@@ -237,6 +269,7 @@ func init() {
 	Register("stln", NewSTLN)
 	Register("stlu", NewSTLU)
 	Register("stlo", NewSTLO)
+	Register("stfue", NewSTFUE)
 	Register("region_experimental_test", NewRegionExperimental)
 	Register("mcfu", NewMCFU)
 }
@@ -449,6 +482,52 @@ func TestVSchemaColumnsFail(t *testing.T) {
 	err := got.Keyspaces["unsharded"].Error
 	if err == nil || err.Error() != want {
 		t.Errorf("BuildVSchema(dup col): %v, want %v", err, want)
+	}
+}
+
+func TestVSchemaRetryVindexWithRetryableError(t *testing.T) {
+	stfueShouldErr = true
+	stfueErr = &MissingSubvindexError{MissingSubvindex: "foo", Method: "bar"}
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					"stfue": {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVSchemaRetryVindexWithNonRetryableError(t *testing.T) {
+	stfueShouldErr = true
+	stfueErr = errors.New("NewSTFUE error")
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					"stfue": {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err == nil || err.Error() != stfueErr.Error() {
+		t.Errorf("BuildTables: got %v, want %v", err, stfueErr)
 	}
 }
 

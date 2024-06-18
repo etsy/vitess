@@ -32,7 +32,16 @@ func init() {
 	Register("etsy_multisharded_hybrid", NewMultiSharded)
 }
 
-// Multisharded defines a multicolumn vindex that resolves a provided
+type MissingSubvindexError struct {
+	MissingSubvindex string
+	Method           string
+}
+
+func (e *MissingSubvindexError) Error() string {
+	return fmt.Sprintf("%s: No hybrid vindex named %s has been defined", e.Method, e.MissingSubvindex)
+}
+
+// MultiSharded defines a multicolumn vindex that resolves a provided
 // typeId column value to a hybrid subvindex and applies the subvindex
 // to the given id column value
 type MultiSharded struct {
@@ -59,12 +68,11 @@ func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
 
 	subvindexes := make(map[string]SingleColumn)
 	for _, vindexName := range typeIdToSubvindexName {
-		// Only hybrid vindexes defined above this etsy_multisharded_hybrid vindex in the vschema,
-		// and therefore initialized before this vschema, will be avaiable in `hybridVindexes`.
+		// Only hybrid vindexes instantiated before this vindex will be avaiable in `hybridVindexes`.
 		if _, ok := hybridVindexes[vindexName]; ok {
 			subvindexes[vindexName] = hybridVindexes[vindexName]
 		} else {
-			return nil, fmt.Errorf("Multisharded.NewMultisharded: No hybrid vindex named %s has been defined", vindexName)
+			return nil, &MissingSubvindexError{MissingSubvindex: vindexName, Method: "Multisharded.NewMultiSharded"}
 		}
 	}
 
