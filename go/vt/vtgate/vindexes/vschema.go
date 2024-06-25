@@ -252,15 +252,14 @@ func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSc
 
 	// CreateVindex will fail if it attempts to create a vindex that depends on another subvindex's existence
 	// and the subvindex has not been created yet.
-	// Store a map of failed vindexes so we can retry them once all other vindexes are created.
+	// The below retries vindexes that fail to be created due to missing subvindexes.
 	// Note that this only allows for one layer of dependency between vindexes (failed vindexes are only retried once)
-	vindexesToRetry := map[string]*vschemapb.Vindex{}
-	err := buildVindexes(ks.Vindexes, ks.RequireExplicitRouting, vschema, ksvschema, vindexesToRetry)
+	toRetry, err := buildVindexes(ks.Vindexes, ks.RequireExplicitRouting, vschema, ksvschema, true)
 	if err != nil {
 		return err
 	}
 	// Retry vindexes that failed due to missing subvindexes
-	err = buildVindexes(vindexesToRetry, ks.RequireExplicitRouting, vschema, ksvschema, nil)
+	_, err = buildVindexes(toRetry, ks.RequireExplicitRouting, vschema, ksvschema, false)
 	if err != nil {
 		return err
 	}
@@ -403,16 +402,16 @@ func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSc
 	return nil
 }
 
-func buildVindexes(vindexes map[string]*vschemapb.Vindex, requireExplicitRouting bool, vschema *VSchema, ksvschema *KeyspaceSchema, vindexesToRetry map[string]*vschemapb.Vindex) error {
-	shouldRetry := vindexesToRetry != nil
+func buildVindexes(vindexes map[string]*vschemapb.Vindex, requireExplicitRouting bool, vschema *VSchema, ksvschema *KeyspaceSchema, shouldRetry bool) (map[string]*vschemapb.Vindex, error) {
+	toRetry := map[string]*vschemapb.Vindex{}
 	for vname, vindexInfo := range vindexes {
 		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
 		if err != nil {
 			if _, ok := err.(*MissingSubvindexError); ok && shouldRetry {
-				vindexesToRetry[vname] = vindexInfo
+				toRetry[vname] = vindexInfo
 				continue
 			} else {
-				return err
+				return nil, err
 			}
 		}
 
@@ -426,7 +425,7 @@ func buildVindexes(vindexes map[string]*vschemapb.Vindex, requireExplicitRouting
 		}
 		ksvschema.Vindexes[vname] = vindex
 	}
-	return nil
+	return toRetry, nil
 }
 
 func resolveAutoIncrement(source *vschemapb.SrvVSchema, vschema *VSchema) {

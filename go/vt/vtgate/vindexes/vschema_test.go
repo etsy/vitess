@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -224,13 +225,21 @@ func (*stFUE) PartialVindex() bool { return false }
 
 // Allows stfue vindex to err on the first CreateVindex call,
 // But succeed on retry
-var stfueShouldErr bool
-var stfueErr error
+var stfueShouldErr = make(map[string]bool)
+var stfueErrors = make(map[string]error)
 
 func NewSTFUE(name string, params map[string]string) (Vindex, error) {
-	if stfueShouldErr {
-		stfueShouldErr = false
-		return nil, stfueErr
+	shouldErr, ok := stfueShouldErr[name]
+	if !ok {
+		return nil, fmt.Errorf("NewSTFUE: Missing entry for %s in stfueShouldErr", name)
+	}
+	err, ok := stfueErrors[name]
+	if !ok {
+		return nil, fmt.Errorf("NewSTFUE: Missing entry for %s in stfueErrors", name)
+	}
+	if shouldErr {
+		stfueShouldErr[name] = false
+		return nil, err
 	}
 	return &stFUE{name: name, Params: params}, nil
 }
@@ -486,14 +495,23 @@ func TestVSchemaColumnsFail(t *testing.T) {
 }
 
 func TestVSchemaRetryVindexWithRetryableError(t *testing.T) {
-	stfueShouldErr = true
-	stfueErr = &MissingSubvindexError{MissingSubvindex: "foo", Method: "bar"}
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindex: stfueName1, Method: "foo"}
+	stfueErrors[stfueName2] = &MissingSubvindexError{MissingSubvindex: stfueName2, Method: "foo"}
+
 	schema := vschemapb.SrvVSchema{
 		Keyspaces: map[string]*vschemapb.Keyspace{
 			"sharded": {
 				Sharded: true,
 				Vindexes: map[string]*vschemapb.Vindex{
-					"stfue": {
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					stfueName2: {
 						Type:   "stfue",
 						Params: map[string]string{},
 					},
@@ -509,14 +527,23 @@ func TestVSchemaRetryVindexWithRetryableError(t *testing.T) {
 }
 
 func TestVSchemaRetryVindexWithNonRetryableError(t *testing.T) {
-	stfueShouldErr = true
-	stfueErr = errors.New("NewSTFUE error")
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = errors.New("stfue error")
+	stfueErrors[stfueName2] = errors.New("stfue error")
+
 	schema := vschemapb.SrvVSchema{
 		Keyspaces: map[string]*vschemapb.Keyspace{
 			"sharded": {
 				Sharded: true,
 				Vindexes: map[string]*vschemapb.Vindex{
-					"stfue": {
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					stfueName2: {
 						Type:   "stfue",
 						Params: map[string]string{},
 					},
@@ -524,10 +551,11 @@ func TestVSchemaRetryVindexWithNonRetryableError(t *testing.T) {
 			},
 		},
 	}
+
 	got := BuildVSchema(&schema)
 	err := got.Keyspaces["sharded"].Error
-	if err == nil || err.Error() != stfueErr.Error() {
-		t.Errorf("BuildTables: got %v, want %v", err, stfueErr)
+	if err == nil || err.Error() != "stfue error" {
+		t.Errorf("BuildTables: got %v, want %v", err, stfueErrors[stfueName1])
 	}
 }
 
