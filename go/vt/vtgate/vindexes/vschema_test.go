@@ -614,6 +614,7 @@ func TestVSchemaNoRetryIfSubvindexNotInVSchema(t *testing.T) {
 
 func TestVSchemaRetryVindexDependsOnItself(t *testing.T) {
 	stfudName := "stfud"
+	stfudVindexes = map[string]Vindex{}
 
 	schema := vschemapb.SrvVSchema{
 		Keyspaces: map[string]*vschemapb.Keyspace{
@@ -694,10 +695,6 @@ func TestVSchemaRetryVindexWithNonRetryableError(t *testing.T) {
 					},
 					stfueName2: {
 						Type:   "stfue",
-						Params: map[string]string{},
-					},
-					"foobar": {
-						Type:   "stfu",
 						Params: map[string]string{},
 					},
 				},
