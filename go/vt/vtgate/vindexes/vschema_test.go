@@ -499,8 +499,110 @@ func TestVSchemaRetryVindexWithRetryableError(t *testing.T) {
 	stfueName2 := "stfue2"
 	stfueShouldErr[stfueName1] = true
 	stfueShouldErr[stfueName2] = true
-	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindex: stfueName1, Method: "foo"}
-	stfueErrors[stfueName2] = &MissingSubvindexError{MissingSubvindex: stfueName2, Method: "foo"}
+	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindexes: []string{"subvindex"}, Method: "foo"}
+	stfueErrors[stfueName2] = &MissingSubvindexError{MissingSubvindexes: []string{"subvindex2"}, Method: "foo"}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					stfueName2: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					"subvindex": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+					"subvindex2": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVSchemaRetrySubvindexNotInVSchema(t *testing.T) {
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindexes: []string{"subvindex"}, Method: "foo"}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					stfueName2: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					"foobar": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err == nil || err.Error() != "foo: The following subvindexes have not been defined: subvindex" {
+		t.Errorf("BuildTables: got %v, want %v", err, stfueErrors[stfueName1])
+	}
+}
+
+func TestVSchemaRetryVindexDependsOnItself(t *testing.T) {
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindexes: []string{stfueName1}, Method: "foo"}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err == nil || err.Error() != "circular vindex dependency: Vindex stfue1 depends on itself" {
+		t.Errorf("BuildTables: got %v, want %v", err, stfueErrors[stfueName1])
+	}
+}
+
+func TestVSchemaRetryVindexesDependOnEachOther(t *testing.T) {
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindexes: []string{stfueName2}, Method: "foo"}
+	stfueErrors[stfueName2] = &MissingSubvindexError{MissingSubvindexes: []string{stfueName1}, Method: "foo"}
 
 	schema := vschemapb.SrvVSchema{
 		Keyspaces: map[string]*vschemapb.Keyspace{

@@ -81,12 +81,18 @@ func TestMultiShardedCreation(t *testing.T) {
 
 func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
 	hybridVindexes = map[string]SingleColumn{
-		"etsy_hybrid_DNE":  &HybridStub{},
+		"etsy_hybrid_user": &HybridStub{},
 		"etsy_hybrid_shop": &HybridStub{},
 	}
 
+	expectedMissingSubvindexes := map[string]bool{"etsy_hybrid_DNE": true, "etsy_hybrid_DNE_2": true}
+	expectedMissingSubvindexesSlice := []string{}
+	for expectedSubvindex := range expectedMissingSubvindexes {
+		expectedMissingSubvindexesSlice = append(expectedMissingSubvindexesSlice, expectedSubvindex)
+	}
+
 	params := map[string]string{
-		"type_id_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
+		"type_id_to_vindex": `{"1":"etsy_hybrid_DNE", "2":"etsy_hybrid_shop", "3":"etsy_hybrid_DNE_2"}`,
 	}
 
 	expectedName := "multisharded_test"
@@ -98,6 +104,23 @@ func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
 
 	if _, ok := err.(*MissingSubvindexError); !ok {
 		t.Errorf("Expected MissingSubvindexError from multisharded.NewMultiSharded, got %s", err.Error())
+	}
+
+	if len(expectedMissingSubvindexes) != len(err.(*MissingSubvindexError).MissingSubvindexes) {
+		t.Errorf(
+			"Got unexpected value for MissingSubvindexError.MissingSubvindexes. Expected: %v, Got: %v",
+			expectedMissingSubvindexesSlice,
+			err.(*MissingSubvindexError).MissingSubvindexes)
+	}
+
+	for _, subvindex := range err.(*MissingSubvindexError).MissingSubvindexes {
+		if _, ok := expectedMissingSubvindexes[subvindex]; !ok {
+			t.Errorf(
+				"Got unexpected value for MissingSubvindexError.MissingSubvindexes. Expected: %v, Got: %v",
+				expectedMissingSubvindexesSlice,
+				err.(*MissingSubvindexError).MissingSubvindexes)
+
+		}
 	}
 }
 

@@ -408,6 +408,19 @@ func buildVindexes(vindexes map[string]*vschemapb.Vindex, requireExplicitRouting
 		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
 		if err != nil {
 			if _, ok := err.(*MissingSubvindexError); ok && shouldRetry {
+
+				for _, subvindexName := range err.(*MissingSubvindexError).MissingSubvindexes {
+					// If the vindex depends on itself, return an error without retrying.
+					if subvindexName == vname {
+						return nil, fmt.Errorf("circular vindex dependency: Vindex %s depends on itself", vname)
+					}
+					// If missing subvindexes arent in `vindexes`, they'll never be instantiated.
+					// In this case, return an error without retrying.
+					if _, ok := vindexes[subvindexName]; !ok {
+						return nil, err
+					}
+				}
+
 				toRetry[vname] = vindexInfo
 				continue
 			} else {
