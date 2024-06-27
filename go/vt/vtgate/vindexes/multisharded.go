@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
@@ -33,12 +34,12 @@ func init() {
 }
 
 type MissingSubvindexError struct {
-	MissingSubvindex string
-	Method           string
+	MissingSubvindexes []string
+	Method             string
 }
 
 func (e *MissingSubvindexError) Error() string {
-	return fmt.Sprintf("%s: No hybrid vindex named %s has been defined", e.Method, e.MissingSubvindex)
+	return fmt.Sprintf("%s: The following subvindexes have not been defined: %s", e.Method, strings.Join(e.MissingSubvindexes, ", "))
 }
 
 // MultiSharded defines a multicolumn vindex that resolves a provided
@@ -67,13 +68,18 @@ func NewMultiSharded(name string, m map[string]string) (Vindex, error) {
 	}
 
 	subvindexes := make(map[string]SingleColumn)
+	missingSubvindexes := []string{}
 	for _, vindexName := range typeIdToSubvindexName {
-		// Only hybrid vindexes instantiated before this vindex will be avaiable in `hybridVindexes`.
+		// Only hybrid vindexes instantiated before this vindex will be available in `hybridVindexes`.
 		if _, ok := hybridVindexes[vindexName]; ok {
 			subvindexes[vindexName] = hybridVindexes[vindexName]
 		} else {
-			return nil, &MissingSubvindexError{MissingSubvindex: vindexName, Method: "Multisharded.NewMultiSharded"}
+			missingSubvindexes = append(missingSubvindexes, vindexName)
 		}
+	}
+
+	if len(missingSubvindexes) > 0 {
+		return nil, &MissingSubvindexError{MissingSubvindexes: missingSubvindexes, Method: "Multisharded.NewMultiSharded"}
 	}
 
 	return &MultiSharded{
