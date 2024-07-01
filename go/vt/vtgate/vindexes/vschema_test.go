@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -203,6 +204,88 @@ func NewSTLO(name string, _ map[string]string) (Vindex, error) {
 	return &stLO{name: name}, nil
 }
 
+// stFUE is a single-column Functional, Unique Vindex that conditionally errs when instantiated.
+// If stFUE errs on creation, it will not err the next time an stFUE vindex with the same name is created.
+// Used for testing retry logic in buildVindexes
+type stFUE struct {
+	name   string
+	Params map[string]string
+}
+
+func (v *stFUE) String() string   { return v.name }
+func (*stFUE) Cost() int          { return 1 }
+func (*stFUE) IsUnique() bool     { return true }
+func (*stFUE) NeedsVCursor() bool { return false }
+func (*stFUE) Verify(context.Context, VCursor, [][]sqltypes.Value, [][]byte) ([]bool, error) {
+	return []bool{}, nil
+}
+func (*stFUE) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
+	return nil, nil
+}
+func (*stFUE) PartialVindex() bool { return false }
+
+// Allows stfue vindex to err on the first CreateVindex call,
+// But succeed on retry
+var stfueShouldErr = make(map[string]bool)
+var stfueErrors = make(map[string]error)
+
+func NewSTFUE(name string, params map[string]string) (Vindex, error) {
+	shouldErr, ok := stfueShouldErr[name]
+	if !ok {
+		return nil, fmt.Errorf("NewSTFUE: Missing entry for %s in stfueShouldErr", name)
+	}
+	err, ok := stfueErrors[name]
+	if !ok {
+		return nil, fmt.Errorf("NewSTFUE: Missing entry for %s in stfueErrors", name)
+	}
+	if shouldErr {
+		stfueShouldErr[name] = false
+		return nil, err
+	}
+	return &stFUE{name: name, Params: params}, nil
+}
+
+// stFUD is a single-column Functional, Unique Vindex that takes a dependency on other vindexes
+type stFUD struct {
+	name   string
+	Params map[string]string
+}
+
+func (v *stFUD) String() string   { return v.name }
+func (*stFUD) Cost() int          { return 1 }
+func (*stFUD) IsUnique() bool     { return true }
+func (*stFUD) NeedsVCursor() bool { return false }
+func (*stFUD) Verify(context.Context, VCursor, [][]sqltypes.Value, [][]byte) ([]bool, error) {
+	return []bool{}, nil
+}
+func (*stFUD) Map(ctx context.Context, vcursor VCursor, rowsColValues [][]sqltypes.Value) ([]key.Destination, error) {
+	return nil, nil
+}
+func (*stFUD) PartialVindex() bool { return false }
+
+var stfudVindexes = make(map[string]Vindex)
+
+func NewSTFUD(name string, params map[string]string) (Vindex, error) {
+	dependencies := []string{}
+	err := json.Unmarshal([]byte(params["dependencies"]), &dependencies)
+	if err != nil {
+		return nil, err
+	}
+
+	missingSubvindexes := []string{}
+	for _, subvindex := range dependencies {
+		if _, ok := stfudVindexes[subvindex]; !ok {
+			missingSubvindexes = append(missingSubvindexes, subvindex)
+		}
+	}
+	if len(missingSubvindexes) > 0 {
+		return nil, &MissingSubvindexError{MissingSubvindexes: missingSubvindexes, Method: "NewSTFUD"}
+	}
+	vindex := &stFUD{name: name, Params: params}
+	stfudVindexes[name] = vindex
+	return vindex, nil
+}
+
 var _ SingleColumn = (*stLO)(nil)
 var _ Lookup = (*stLO)(nil)
 
@@ -237,6 +320,8 @@ func init() {
 	Register("stln", NewSTLN)
 	Register("stlu", NewSTLU)
 	Register("stlo", NewSTLO)
+	Register("stfue", NewSTFUE)
+	Register("stfud", NewSTFUD)
 	Register("region_experimental_test", NewRegionExperimental)
 	Register("mcfu", NewMCFU)
 }
@@ -449,6 +534,178 @@ func TestVSchemaColumnsFail(t *testing.T) {
 	err := got.Keyspaces["unsharded"].Error
 	if err == nil || err.Error() != want {
 		t.Errorf("BuildVSchema(dup col): %v, want %v", err, want)
+	}
+}
+
+func TestVSchemaRetryVindexWithRetryableError(t *testing.T) {
+	// Because the order in which BuildVSchema instantiates vindexes is nondeterministic,
+	// test buildVindexes's retry logic by mocking the stfue vindexes so that each returns a
+	// MissingSubvindexError the first time it is created, and returns no error the second time it is created.
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = &MissingSubvindexError{MissingSubvindexes: []string{"subvindex"}, Method: "foo"}
+	stfueErrors[stfueName2] = &MissingSubvindexError{MissingSubvindexes: []string{"subvindex2"}, Method: "foo"}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					stfueName2: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					"subvindex": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+					"subvindex2": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVSchemaNoRetryIfSubvindexNotInVSchema(t *testing.T) {
+	stfueName := "stfue"
+	stfueShouldErr[stfueName] = true
+	stfueErrors[stfueName] = &MissingSubvindexError{MissingSubvindexes: []string{"subvindex"}, Method: "foo"}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfueName: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					"foobar": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+
+	expectedError := "foo: The following subvindexes have not been defined: subvindex"
+	if err == nil || err.Error() != expectedError {
+		t.Errorf("BuildVSchema: incorrect error returned: got %v, want %v", err, expectedError)
+	}
+}
+
+func TestVSchemaRetryVindexDependsOnItself(t *testing.T) {
+	stfudName := "stfud"
+	stfudVindexes = map[string]Vindex{}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfudName: {
+						Type:   "stfud",
+						Params: map[string]string{"dependencies": fmt.Sprintf(`["%s"]`, stfudName)},
+					},
+					"foobar": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	expectedErr := "circular vindex dependency: Vindex stfud depends on itself"
+	if err == nil || err.Error() != expectedErr {
+		t.Errorf("BuildVSchema: incorrect error returned: got %v, want %v", err, expectedErr)
+	}
+}
+
+func TestVSchemaRetryVindexesDependOnEachOther(t *testing.T) {
+	stfudName1 := "stfud1"
+	stfudName2 := "stfud2"
+	stfudVindexes = map[string]Vindex{}
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfudName1: {
+						Type:   "stfud",
+						Params: map[string]string{"dependencies": fmt.Sprintf(`["%s"]`, stfudName2)},
+					},
+					stfudName2: {
+						Type:   "stfud",
+						Params: map[string]string{"dependencies": fmt.Sprintf(`["%s"]`, stfudName1)},
+					},
+					"foobar": {
+						Type:   "stfu",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	_, ok := err.(*MissingSubvindexError)
+
+	if err == nil || !ok {
+		t.Errorf("BuildVSchema: incorrect error returned: got %v, want MissingSubvindexError", err)
+	}
+}
+
+func TestVSchemaRetryVindexWithNonRetryableError(t *testing.T) {
+	stfueName1 := "stfue1"
+	stfueName2 := "stfue2"
+	stfueShouldErr[stfueName1] = true
+	stfueShouldErr[stfueName2] = true
+	stfueErrors[stfueName1] = errors.New("stfue error")
+	stfueErrors[stfueName2] = errors.New("stfue error")
+
+	schema := vschemapb.SrvVSchema{
+		Keyspaces: map[string]*vschemapb.Keyspace{
+			"sharded": {
+				Sharded: true,
+				Vindexes: map[string]*vschemapb.Vindex{
+					stfueName1: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+					stfueName2: {
+						Type:   "stfue",
+						Params: map[string]string{},
+					},
+				},
+			},
+		},
+	}
+
+	got := BuildVSchema(&schema)
+	err := got.Keyspaces["sharded"].Error
+	if err == nil || err.Error() != "stfue error" {
+		t.Errorf("BuildVSchema: incorrect error returned: got %v, want %v", err, "stfue error")
 	}
 }
 

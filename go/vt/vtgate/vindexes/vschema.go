@@ -249,22 +249,21 @@ func buildKeyspaces(source *vschemapb.SrvVSchema, vschema *VSchema) {
 
 func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSchema) error {
 	keyspace := ksvschema.Keyspace
-	for vname, vindexInfo := range ks.Vindexes {
-		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
-		if err != nil {
-			return err
-		}
 
-		// If the keyspace requires explicit routing, don't include it in global routing
-		if !ks.RequireExplicitRouting {
-			if _, ok := vschema.uniqueVindexes[vname]; ok {
-				vschema.uniqueVindexes[vname] = nil
-			} else {
-				vschema.uniqueVindexes[vname] = vindex
-			}
-		}
-		ksvschema.Vindexes[vname] = vindex
+	// CreateVindex will fail if it attempts to create a vindex that depends on another subvindex's existence
+	// and the subvindex has not been created yet.
+	// The below retries vindexes that fail to be created due to missing subvindexes.
+	// Note that this only allows for one layer of dependency between vindexes (failed vindexes are only retried once)
+	toRetry, err := buildVindexes(ks.Vindexes, ks.RequireExplicitRouting, vschema, ksvschema, true)
+	if err != nil {
+		return err
 	}
+	// Retry vindexes that failed due to missing subvindexes
+	_, err = buildVindexes(toRetry, ks.RequireExplicitRouting, vschema, ksvschema, false)
+	if err != nil {
+		return err
+	}
+
 	for tname, table := range ks.Tables {
 		t := &Table{
 			Name:                    sqlparser.NewIdentifierCS(tname),
@@ -401,6 +400,45 @@ func buildTables(ks *vschemapb.Keyspace, vschema *VSchema, ksvschema *KeyspaceSc
 		ksvschema.Tables[tname] = t
 	}
 	return nil
+}
+
+func buildVindexes(vindexes map[string]*vschemapb.Vindex, requireExplicitRouting bool, vschema *VSchema, ksvschema *KeyspaceSchema, shouldRetry bool) (map[string]*vschemapb.Vindex, error) {
+	toRetry := map[string]*vschemapb.Vindex{}
+	for vname, vindexInfo := range vindexes {
+		vindex, err := CreateVindex(vindexInfo.Type, vname, vindexInfo.Params)
+		if err != nil {
+			if _, ok := err.(*MissingSubvindexError); ok && shouldRetry {
+
+				for _, subvindexName := range err.(*MissingSubvindexError).MissingSubvindexes {
+					// If the vindex depends on itself, return an error without retrying.
+					if subvindexName == vname {
+						return nil, fmt.Errorf("circular vindex dependency: Vindex %s depends on itself", vname)
+					}
+					// If missing subvindexes arent in `vindexes`, they'll never be instantiated.
+					// In this case, return an error without retrying.
+					if _, ok := vindexes[subvindexName]; !ok {
+						return nil, err
+					}
+				}
+
+				toRetry[vname] = vindexInfo
+				continue
+			} else {
+				return nil, err
+			}
+		}
+
+		// If the keyspace requires explicit routing, don't include it in global routing
+		if !requireExplicitRouting {
+			if _, ok := vschema.uniqueVindexes[vname]; ok {
+				vschema.uniqueVindexes[vname] = nil
+			} else {
+				vschema.uniqueVindexes[vname] = vindex
+			}
+		}
+		ksvschema.Vindexes[vname] = vindex
+	}
+	return toRetry, nil
 }
 
 func resolveAutoIncrement(source *vschemapb.SrvVSchema, vschema *VSchema) {

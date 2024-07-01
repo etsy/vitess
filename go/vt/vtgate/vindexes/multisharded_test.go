@@ -81,32 +81,58 @@ func TestMultiShardedCreation(t *testing.T) {
 
 func TestMultiShardedCreationWithNonexistantSubvindex(t *testing.T) {
 	hybridVindexes = map[string]SingleColumn{
-		"etsy_hybrid_DNE":  &HybridStub{},
+		"etsy_hybrid_user": &HybridStub{},
 		"etsy_hybrid_shop": &HybridStub{},
 	}
 
+	expectedMissingSubvindexes := map[string]bool{"etsy_hybrid_DNE": true, "etsy_hybrid_DNE_2": true}
+	expectedMissingSubvindexesSlice := []string{}
+	for expectedSubvindex := range expectedMissingSubvindexes {
+		expectedMissingSubvindexesSlice = append(expectedMissingSubvindexesSlice, expectedSubvindex)
+	}
+
 	params := map[string]string{
-		"type_id_to_vindex": `{"1":"etsy_hybrid_user", "2":"etsy_hybrid_shop"}`,
+		"type_id_to_vindex": `{"1":"etsy_hybrid_DNE", "2":"etsy_hybrid_shop", "3":"etsy_hybrid_DNE_2"}`,
 	}
 
 	expectedName := "multisharded_test"
 	_, err := CreateVindex("etsy_multisharded_hybrid", expectedName, params)
+
 	if err == nil {
-		t.Errorf("Expected error from multisharded.NewMultiSharded, got nil")
+		t.Errorf("Expected MissingSubvindexError from multisharded.NewMultiSharded, got nil")
+	}
+
+	if _, ok := err.(*MissingSubvindexError); !ok {
+		t.Errorf("Expected MissingSubvindexError from multisharded.NewMultiSharded, got %s", err.Error())
+	}
+
+	if len(expectedMissingSubvindexes) != len(err.(*MissingSubvindexError).MissingSubvindexes) {
+		t.Errorf(
+			"Got unexpected value for MissingSubvindexError.MissingSubvindexes. Expected: %v, Got: %v",
+			expectedMissingSubvindexesSlice,
+			err.(*MissingSubvindexError).MissingSubvindexes)
+	}
+
+	for _, subvindex := range err.(*MissingSubvindexError).MissingSubvindexes {
+		if _, ok := expectedMissingSubvindexes[subvindex]; !ok {
+			t.Errorf(
+				"Got unexpected value for MissingSubvindexError.MissingSubvindexes. Expected: %v, Got: %v",
+				expectedMissingSubvindexesSlice,
+				err.(*MissingSubvindexError).MissingSubvindexes)
+
+		}
 	}
 }
 
 func TestMultiShardedMap(t *testing.T) {
 	cases := []struct {
-		name           string
-		typeIdToVindex string
-		rowsColValues  [][]sqltypes.Value
-		expected       []key.Destination
-		shouldErr      bool
+		name          string
+		rowsColValues [][]sqltypes.Value
+		expected      []key.Destination
+		shouldErr     bool
 	}{
 		{
 			"All rows map to same subvindex",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(5)},
@@ -121,7 +147,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Rows map to different subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(2), sqltypes.NewInt64(60)},
@@ -136,7 +161,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Some rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(2), sqltypes.NewInt64(60)},
@@ -147,7 +171,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"No rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(100), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(200), sqltypes.NewInt64(60)},
@@ -158,7 +181,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(-1), sqltypes.NewInt64(100)},
 			},
@@ -167,7 +189,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(-100)},
 			},
@@ -176,7 +197,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("-1"), sqltypes.NewVarChar("100")},
 			},
@@ -185,7 +205,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"Errors when id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("-100")},
 			},
@@ -194,7 +213,6 @@ func TestMultiShardedMap(t *testing.T) {
 		},
 		{
 			"String ids supported",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("1")},
 				{sqltypes.NewVarBinary("2"), sqltypes.NewVarBinary("60")},
@@ -214,7 +232,7 @@ func TestMultiShardedMap(t *testing.T) {
 			multisharded, err := CreateVindex(
 				"etsy_multisharded_hybrid",
 				"multisharded_test",
-				map[string]string{"type_id_to_vindex": c.typeIdToVindex})
+				map[string]string{"type_id_to_vindex": `{"1":"subvindex_a", "2":"subvindex_b"}`})
 
 			if err != nil {
 				t.Fatal(err)
@@ -242,16 +260,14 @@ func TestMultiShardedMap(t *testing.T) {
 
 func TestMultiShardedVerify(t *testing.T) {
 	cases := []struct {
-		name           string
-		typeIdToVindex string
-		rowsColValues  [][]sqltypes.Value
-		ksids          [][]byte
-		expected       []bool
-		shouldErr      bool
+		name          string
+		rowsColValues [][]sqltypes.Value
+		ksids         [][]byte
+		expected      []bool
+		shouldErr     bool
 	}{
 		{
 			"Same subvindex, all ksids map correctly to ids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -267,7 +283,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Same subvindex, some incorrect ksids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -283,7 +298,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Different subvindexes, all ksids map correctly to ids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -299,7 +313,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Different subvindexes, some incorrect ksids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -315,7 +328,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Different subvindexes, no correct ksids",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -333,7 +345,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Some rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(2)},
@@ -349,7 +360,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"No rows map to subvindexes",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(100), sqltypes.NewInt64(1)},
 				{sqltypes.NewInt64(200), sqltypes.NewInt64(2)},
@@ -365,7 +375,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(-1), sqltypes.NewInt64(1)},
 			},
@@ -377,7 +386,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when id is negative int",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewInt64(1), sqltypes.NewInt64(-1)},
 			},
@@ -389,7 +397,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when type_id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("-1"), sqltypes.NewVarChar("1")},
 			},
@@ -401,7 +408,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"Errors when id is negative string",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("-1")},
 			},
@@ -413,7 +419,6 @@ func TestMultiShardedVerify(t *testing.T) {
 		},
 		{
 			"String ids supported",
-			`{"1":"subvindex_a", "2":"subvindex_b"}`,
 			[][]sqltypes.Value{
 				{sqltypes.NewVarChar("1"), sqltypes.NewVarChar("1")},
 				{sqltypes.NewVarBinary("1"), sqltypes.NewVarBinary("2")},
@@ -434,7 +439,7 @@ func TestMultiShardedVerify(t *testing.T) {
 			multisharded, err := CreateVindex(
 				"etsy_multisharded_hybrid",
 				"multisharded_test",
-				map[string]string{"type_id_to_vindex": c.typeIdToVindex})
+				map[string]string{"type_id_to_vindex": `{"1":"subvindex_a", "2":"subvindex_b"}`})
 
 			if err != nil {
 				t.Fatal(err)
