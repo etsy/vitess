@@ -11,3 +11,5 @@ releases
 /vtdataroot/
 /web/vtadmin/node_modules
 /web/vtadmin/build
+
+etsy_docker/datadir

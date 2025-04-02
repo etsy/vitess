@@ -1,0 +1,18 @@
+{
+    "table_groups": [
+        {
+            "name": "global reader/writer acl",
+            "table_names_or_prefixes": [
+                "%"
+            ],
+            "readers": [
+                "test-ro",
+                "test-rw"
+            ],
+            "writers": [
+                "test-rw"
+            ],
+            "admins": []
+        }
+    ]
+}

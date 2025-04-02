@@ -1,0 +1,18 @@
+{
+    "vtctlds": [
+        {
+            "host": {
+                "fqdn": "vtctld.tspotts.etsyweb.devenv.etsycloud.com:18085",
+                "hostname": "vtctld.tspotts.etsyweb.devenv.etsycloud.com:15999"
+            }
+        }
+    ],
+    "vtgates": [
+        {
+            "host": {
+                "fqdn": "vtgate.tspotts.etsyweb.devenv.etsycloud.com:18086",
+                "hostname": "vtgate.tspotts.etsyweb.devenv.etsycloud.com:16306"
+            }
+        }
+    ]
+}

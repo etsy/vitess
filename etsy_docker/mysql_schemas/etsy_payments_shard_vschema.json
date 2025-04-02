@@ -1,0 +1,586 @@
+{
+    "sharded": true,
+    "vindexes": {
+        "etsy_payments_shard_hash": {
+            "type": "hash"
+        },
+        "group_payment_id_to_shop_payment_id": {
+            "type": "consistent_lookup",
+            "params": {
+                "from": "group_payment_id,shop_payment_id",
+                "table": "etsy_payments_shard.group_payment_id_to_shop_payment_id",
+                "to": "keyspace_id"
+            },
+            "owner": "shop_payments"
+        },
+        "hash": {
+            "type": "hash"
+        },
+        "payment_id_to_donation_payment_id": {
+            "type": "consistent_lookup_unique",
+            "params": {
+                "from": "payment_id",
+                "table": "etsy_payments_shard.payment_id_to_donation_payment_id",
+                "to": "donation_payment_id"
+            },
+            "owner": "donation_payments"
+        },
+        "payment_id_to_payment_adjustment_id": {
+            "type": "consistent_lookup",
+            "params": {
+                "from": "payment_id,payment_adjustment_id",
+                "table": "etsy_payments_shard.payment_id_to_payment_adjustment_id",
+                "to": "keyspace_id"
+            },
+            "owner": "payments_adjustments"
+        },
+        "payoneer_disbursement_job_id_to_shop_id": {
+            "type": "consistent_lookup",
+            "params": {
+                "from": "disbursement_job_id,shop_id",
+                "table": "etsy_payments_shard.payoneer_disbursement_job_id_to_shop_id",
+                "to": "keyspace_id"
+            },
+            "owner": "payoneer_items"
+        },
+        "receipt_id_to_shop_payment_id": {
+            "type": "consistent_lookup_unique",
+            "params": {
+                "from": "receipt_id",
+                "table": "etsy_payments_shard.receipt_id_to_shop_payment_id",
+                "to": "shop_payment_id"
+            },
+            "owner": "shop_payments"
+        },
+        "unicode_loose_md5": {
+            "type": "unicode_loose_md5"
+        }
+    },
+    "tables": {
+        "threeds_authentication_preference": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "transaction_routing_audits": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "account_updater_jobs": {
+            "columnVindexes": [
+                {
+                    "column": "account_updater_job_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "account_updater_batches": {
+            "columnVindexes": [
+                {
+                    "column": "account_updater_job_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "account_updater_items": {
+            "columnVindexes": [
+                {
+                    "column": "account_updater_batch_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "billing_payments": {
+            "columnVindexes": [
+                {
+                    "column": "billing_payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "billing_payments_adjustments": {
+            "columnVindexes": [
+                {
+                    "column": "billing_payment_adjustment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "cc_txns": {
+            "columnVindexes": [
+                {
+                    "column": "reference_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "debezium_signal": {
+            "column_vindexes": [
+                {
+                    "column": "id",
+                    "name": "unicode_loose_md5"
+                }
+            ]
+        },
+        "disregarded_entity_shops": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "donation_payments": {
+            "columnVindexes": [
+                {
+                    "column": "donation_payment_id",
+                    "name": "etsy_payments_shard_hash"
+                },
+                {
+                    "column": "payment_id",
+                    "name": "payment_id_to_donation_payment_id"
+                }
+            ]
+        },
+        "fraud_responses": {
+            "columnVindexes": [
+                {
+                    "column": "payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "fraud_requests": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "group_payment_id_to_shop_payment_id": {
+            "columnVindexes": [
+                {
+                    "column": "group_payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_adjustment": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_amount_due": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_entries_queue": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_entry": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_entry_tax_details": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_mapping": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "ledger_rollup": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payment_id_to_donation_payment_id": {
+            "columnVindexes": [
+                {
+                    "column": "payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payment_id_to_payment_adjustment_id": {
+            "columnVindexes": [
+                {
+                    "column": "payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payments_spa_reserve_audit": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payments": {
+            "columnVindexes": [
+                {
+                    "column": "payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payments_actions": {
+            "columnVindexes": [
+                {
+                    "column": "payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payments_adjustments": {
+            "columnVindexes": [
+                {
+                    "column": "payment_adjustment_id",
+                    "name": "etsy_payments_shard_hash"
+                },
+                {
+                    "name": "payment_id_to_payment_adjustment_id",
+                    "columns": [
+                        "payment_id",
+                        "payment_adjustment_id"
+                    ]
+                }
+            ]
+        },
+        "payments_adjustments_items": {
+            "columnVindexes": [
+                {
+                    "column": "payment_adjustment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payments_fees": {
+            "columnVindexes": [
+                {
+                    "column": "payment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payments_fees_adjustments": {
+            "columnVindexes": [
+                {
+                    "column": "payment_adjustment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payoneer_accounts": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "payoneer_disbursement_job_id_to_shop_id": {
+            "columnVindexes": [
+                {
+                    "column": "disbursement_job_id",
+                    "name": "hash"
+                }
+            ]
+        },
+        "payoneer_items": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                },
+                {
+                    "name": "payoneer_disbursement_job_id_to_shop_id",
+                    "columns": [
+                        "disbursement_job_id",
+                        "shop_id"
+                    ]
+                }
+            ]
+        },
+        "paypal_txns": {
+            "columnVindexes": [
+                {
+                    "column": "reference_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "plaid_bank_transfer_events": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "bank_account_verification_tracker": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "bank_account_verification_tracker_log": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "processor_txn_reference": {
+            "columnVindexes": [
+                {
+                    "column": "reference_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "razorpay_kyc_errors": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "razorpay_kyc_records": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "razorpay_kyc_requirements": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "real_time_account_updater_items": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "receipt_id_to_shop_payment_id": {
+            "columnVindexes": [
+                {
+                    "column": "receipt_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "recoupments": {
+            "columnVindexes": [
+                {
+                    "column": "recoupment_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "seller_onboarding_fee": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "seller_onboarding_fee_adjustment": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "shop_payments": {
+            "columnVindexes": [
+                {
+                    "column": "shop_payment_id",
+                    "name": "etsy_payments_shard_hash"
+                },
+                {
+                    "column": "receipt_id",
+                    "name": "receipt_id_to_shop_payment_id"
+                },
+                {
+                    "name": "group_payment_id_to_shop_payment_id",
+                    "columns": [
+                        "group_payment_id",
+                        "shop_payment_id"
+                    ]
+                }
+            ]
+        },
+        "subscriptions": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "subscription_invoices": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "subscription_payments": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "subscription_payment_adjustments": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "status_log_ytd": {
+            "columnVindexes": [
+                {
+                    "column": "reference_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "tds_gift_cards": {
+            "columnVindexes": [
+                {
+                    "column": "redeem_user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "tds_purchase_attempts": {
+            "columnVindexes": [
+                {
+                    "column": "tds_purchase_attempt_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "tds_merchants": {
+            "columnVindexes": [
+                {
+                    "column": "tds_merchant_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "refund_credits": {
+            "columnVindexes": [
+                {
+                    "column": "buyer_user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "refund_method_preferences": {
+            "columnVindexes": [
+                {
+                    "column": "buyer_user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "vitess_etet": {
+            "columnVindexes": [
+                {
+                    "column": "id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "wpap_txns": {
+            "columnVindexes": [
+                {
+                    "column": "reference_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "youlend_prequalifications": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "feature_log": {
+            "columnVindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        }
+    }
+}
