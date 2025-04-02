@@ -1,0 +1,800 @@
+# use Docker Compose x- extension fields to DRY up common vttablet service options
+x-vttablet_template: &vttablet_template
+  image: etsy-vitess:latest
+  domainname: "${DOCKER_HOSTNAME}"
+  environment:
+    - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+  depends_on:
+    mysqld:
+      condition: service_healthy
+    vtctld:
+      condition: service_healthy
+    vtctld_post_start:
+        condition: service_completed_successfully
+
+
+services:
+
+  debugger:
+    image: etsy-vitess-debugger:latest
+    container_name: debugger
+    hostname: debugger
+    domainname: "${DOCKER_HOSTNAME}"
+    volumes:
+      - ${PWD}/mysql_schemas/:/home/vitess/mysql_schemas/
+      - ${PWD}/tests/:/home/vitess/tests/
+    env_file: .env
+    # prevent debugger from starting by putting it in its own profile
+    profiles:
+      - debugger
+
+  mysqld:
+    image: mysql:8.0.28
+    container_name: mysqld
+    hostname: mysqld
+    domainname: "${DOCKER_HOSTNAME}"
+    ports:
+      - "${MYSQL_PORT}:${MYSQL_PORT}"
+    environment:
+      - MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+      - MYSQL_PORT=$MYSQL_PORT
+    volumes:
+      - ${PWD}/conf/etsy.cnf:/etc/mysql/conf.d/etsy.cnf
+      - ${PWD}/mysql_schemas/:/docker-entrypoint-initdb.d/
+      - ${PWD}/datadir:/var/lib/mysql
+    healthcheck:
+      # connect with host + port here so we don't get mixed up with the temporary mysql process that starts pre dB init
+      test: /usr/bin/mysql --user=root --password=$${MYSQL_ROOT_PASSWORD} --host=mysqld --port=$${MYSQL_PORT} --execute "SHOW DATABASES;"
+      interval: 1s
+      timeout: 10s
+      retries: 300
+      start_period: 10s
+    cap_add:
+      - SYS_NICE  # add CAP_SYS_NICE to silence these errors from mysqld "mbind: Operation not permitted"
+
+  topology:
+    image: gcr.io/etcd-development/etcd:v3.5.17
+    container_name: topology
+    hostname: topology
+    domainname: "${DOCKER_HOSTNAME}"
+    ports:
+      - "2379:2379"
+    command: /usr/local/bin/etcd ${ETCD_FLAGS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/etcdctl", "endpoint", "health"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+      start_period: 500ms
+
+  vtctld:
+    image: etsy-vitess:latest
+    container_name: vtctld
+    hostname: vtctld
+    domainname: "${DOCKER_HOSTNAME}"
+    depends_on:
+      mysqld:
+        condition: service_healthy
+      topology:
+        condition: service_healthy
+    ports:
+      - "15999:15999"
+      - "18085:18085"
+    command: /usr/local/bin/procman /usr/local/bin/vtctld ${VTCTLD_FLAGS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "18085"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+      start_period: 1s
+  
+  vtctld_post_start:
+    image: etsy-vitess:latest
+    depends_on:
+      vtctld:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vtctldclient
+      ${VTCTLDCLIENT_FLAGS}
+      UpdateCellInfo
+        --root=/vitess/${VT_CELL}
+        --server-address="http://topology:2379"
+        ${VT_CELL} 
+
+  vttablet_etsy_test:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_test
+    hostname: vttablet_etsy_test
+    ports:
+      - "15${VTTABLET_ID_ETSY_TEST}:15${VTTABLET_ID_ETSY_TEST}"
+      - "25${VTTABLET_ID_ETSY_TEST}:25${VTTABLET_ID_ETSY_TEST}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_TEST}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_TEST}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+  vttablet_etsy_test_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_test:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_test:15${VTTABLET_ID_ETSY_TEST}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_TEST}
+
+  vttablet_etsy_analytics:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_analytics
+    hostname: vttablet_etsy_analytics
+    ports:
+      - "15${VTTABLET_ID_ETSY_ANALYTICS}:15${VTTABLET_ID_ETSY_ANALYTICS}"
+      - "25${VTTABLET_ID_ETSY_ANALYTICS}:25${VTTABLET_ID_ETSY_ANALYTICS}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_ANALYTICS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_ANALYTICS}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_analytics_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_analytics:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_analytics:15${VTTABLET_ID_ETSY_ANALYTICS}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_ANALYTICS}
+  
+  vttablet_etsy_apollo:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_apollo
+    hostname: vttablet_etsy_apollo
+    ports:
+      - "15${VTTABLET_ID_ETSY_APOLLO}:15${VTTABLET_ID_ETSY_APOLLO}"
+      - "25${VTTABLET_ID_ETSY_APOLLO}:25${VTTABLET_ID_ETSY_APOLLO}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_APOLLO}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_APOLLO}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_apollo_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_apollo:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_apollo:15${VTTABLET_ID_ETSY_APOLLO}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_APOLLO}
+
+  vttablet_etsy_atlas:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_atlas
+    hostname: vttablet_etsy_atlas
+    ports:
+      - "15${VTTABLET_ID_ETSY_ATLAS}:15${VTTABLET_ID_ETSY_ATLAS}"
+      - "25${VTTABLET_ID_ETSY_ATLAS}:25${VTTABLET_ID_ETSY_ATLAS}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_ATLAS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_ATLAS}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_atlas_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_atlas:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_atlas:15${VTTABLET_ID_ETSY_ATLAS}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_ATLAS}
+
+  vttablet_etsy_aux:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_aux
+    hostname: vttablet_etsy_aux
+    ports:
+      - "15${VTTABLET_ID_ETSY_AUX}:15${VTTABLET_ID_ETSY_AUX}"
+      - "25${VTTABLET_ID_ETSY_AUX}:25${VTTABLET_ID_ETSY_AUX}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_AUX}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_AUX}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_aux_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_aux:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_aux:15${VTTABLET_ID_ETSY_AUX}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_AUX}
+
+  vttablet_etsy_billing:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_billing
+    hostname: vttablet_etsy_billing
+    ports:
+      - "15${VTTABLET_ID_ETSY_BILLING}:15${VTTABLET_ID_ETSY_BILLING}"
+      - "25${VTTABLET_ID_ETSY_BILLING}:25${VTTABLET_ID_ETSY_BILLING}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_BILLING}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_BILLING}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_billing_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_billing:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_billing:15${VTTABLET_ID_ETSY_BILLING}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_BILLING}
+
+  vttablet_etsy_certs:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_certs
+    hostname: vttablet_etsy_certs
+    ports:
+      - "15${VTTABLET_ID_ETSY_CERTS}:15${VTTABLET_ID_ETSY_CERTS}"
+      - "25${VTTABLET_ID_ETSY_CERTS}:25${VTTABLET_ID_ETSY_CERTS}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_CERTS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_CERTS}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_certs_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_certs:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_certs:15${VTTABLET_ID_ETSY_CERTS}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_CERTS}
+
+  vttablet_etsy_failover_shard_001:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_failover_shard_001
+    hostname: vttablet_etsy_failover_shard_001
+    ports:
+      - "15${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}:15${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}"
+      - "25${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}:25${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_FAILOVER_SHARD_001}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_failover_shard_001_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully        
+      vttablet_etsy_failover_shard_001:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_failover_shard_001:15${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_FAILOVER_SHARD_001}
+
+  vttablet_etsy_failover_shard_002:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_failover_shard_002
+    hostname: vttablet_etsy_failover_shard_002
+    ports:
+      - "15${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}:15${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}"
+      - "25${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}:25${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_FAILOVER_SHARD_002}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_failover_shard_002_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_failover_shard_002:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_failover_shard_002:15${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_FAILOVER_SHARD_002}
+
+  vttablet_etsy_index:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_index
+    hostname: vttablet_etsy_index
+    ports:
+      - "15${VTTABLET_ID_ETSY_INDEX}:15${VTTABLET_ID_ETSY_INDEX}"
+      - "25${VTTABLET_ID_ETSY_INDEX}:25${VTTABLET_ID_ETSY_INDEX}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_INDEX}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_INDEX}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_index_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_index:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_index:15${VTTABLET_ID_ETSY_INDEX}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_INDEX}
+
+  vttablet_etsy_jobbatch:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_jobbatch
+    hostname: vttablet_etsy_jobbatch
+    ports:
+      - "15${VTTABLET_ID_ETSY_JOBBATCH}:15${VTTABLET_ID_ETSY_JOBBATCH}"
+      - "25${VTTABLET_ID_ETSY_JOBBATCH}:25${VTTABLET_ID_ETSY_JOBBATCH}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_JOBBATCH}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_JOBBATCH}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_jobbatch_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_jobbatch:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_jobbatch:15${VTTABLET_ID_ETSY_JOBBATCH}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_JOBBATCH}
+
+  vttablet_etsy_mail:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_mail
+    hostname: vttablet_etsy_mail
+    ports:
+      - "15${VTTABLET_ID_ETSY_MAIL}:15${VTTABLET_ID_ETSY_MAIL}"
+      - "25${VTTABLET_ID_ETSY_MAIL}:25${VTTABLET_ID_ETSY_MAIL}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_MAIL}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_MAIL}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_mail_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_mail:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_mail:15${VTTABLET_ID_ETSY_MAIL}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_MAIL}
+
+  vttablet_etsy_payments_shard_001:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_etsy_payments_shard_001
+    hostname: vttablet_etsy_etsy_payments_shard_001
+    ports:
+      - "15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}:15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}"
+      - "25${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}:25${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_PAYMENTS_SHARD_001}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_payments_shard_001_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_payments_shard_001:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_payments_shard_001:15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_PAYMENTS_SHARD_001}
+
+  vttablet_etsy_payments_shard_002:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_etsy_payments_shard_002
+    hostname: vttablet_etsy_etsy_payments_shard_002
+    ports:
+      - "15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}:15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}"
+      - "25${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}:25${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_PAYMENTS_SHARD_002}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_payments_shard_002_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_payments_shard_002:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_payments_shard_002:15${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_PAYMENTS_SHARD_002}
+
+  vttablet_etsy_risk:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_risk
+    hostname: vttablet_etsy_risk
+    ports:
+      - "15${VTTABLET_ID_ETSY_RISK}:15${VTTABLET_ID_ETSY_RISK}"
+      - "25${VTTABLET_ID_ETSY_RISK}:25${VTTABLET_ID_ETSY_RISK}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_RISK}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_RISK}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_risk_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_risk:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_risk:15${VTTABLET_ID_ETSY_RISK}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_RISK}
+
+  vttablet_etsy_shard_001:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_etsy_shard_001
+    hostname: vttablet_etsy_etsy_shard_001
+    ports:
+      - "15${VTTABLET_ID_ETSY_SHARD_001}:15${VTTABLET_ID_ETSY_SHARD_001}"
+      - "25${VTTABLET_ID_ETSY_SHARD_001}:25${VTTABLET_ID_ETSY_SHARD_001}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_SHARD_001}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_SHARD_001}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_shard_001_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_shard_001:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_shard_001:15${VTTABLET_ID_ETSY_SHARD_001}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_SHARD_001}
+  
+  vttablet_etsy_shard_002:
+    <<: *vttablet_template
+    container_name: vttablet_etsy_etsy_shard_002
+    hostname: vttablet_etsy_etsy_shard_002
+    ports:
+      - "15${VTTABLET_ID_ETSY_SHARD_002}:15${VTTABLET_ID_ETSY_SHARD_002}"
+      - "25${VTTABLET_ID_ETSY_SHARD_002}:25${VTTABLET_ID_ETSY_SHARD_002}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_ETSY_SHARD_002}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_ETSY_SHARD_002}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_etsy_shard_002_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_etsy_shard_002:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_etsy_shard_002:15${VTTABLET_ID_ETSY_SHARD_002}
+      ${VT_CELL}-${VTTABLET_ID_ETSY_SHARD_002}
+
+  vttablet_giftcards:
+    <<: *vttablet_template
+    container_name: vttablet_giftcards
+    hostname: vttablet_giftcards
+    ports:
+      - "15${VTTABLET_ID_GIFTCARDS}:15${VTTABLET_ID_GIFTCARDS}"
+      - "25${VTTABLET_ID_GIFTCARDS}:25${VTTABLET_ID_GIFTCARDS}"
+    command: /usr/local/bin/procman /usr/local/bin/vttablet ${VTTABLET_FLAGS_COMMON} ${VTTABLET_FLAGS_GIFTCARDS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "15${VTTABLET_ID_GIFTCARDS}"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vttablet_giftcards_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vttablet_giftcards:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vttablet_post_start
+      vttablet_giftcards:15${VTTABLET_ID_GIFTCARDS}
+      ${VT_CELL}-${VTTABLET_ID_GIFTCARDS}
+
+  vtgate:
+    image: etsy-vitess:latest
+    container_name: vtgate
+    hostname: vtgate
+    domainname: "${DOCKER_HOSTNAME}"
+    depends_on:
+      mysqld:
+        condition: service_healthy
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      # adding ALL the tablets here is ugly :( but prevents a lot of errors and retries for the gate, so keeping this for now...
+      vttablet_etsy_test:
+        condition: service_healthy
+      vttablet_etsy_analytics:
+        condition: service_healthy
+      vttablet_etsy_apollo:
+        condition: service_healthy
+      vttablet_etsy_atlas:
+        condition: service_healthy
+      vttablet_etsy_aux:
+        condition: service_healthy
+      vttablet_etsy_billing:
+        condition: service_healthy
+      vttablet_etsy_certs:
+        condition: service_healthy
+      vttablet_etsy_failover_shard_001:
+        condition: service_healthy
+      vttablet_etsy_failover_shard_002:
+        condition: service_healthy
+      vttablet_etsy_index:
+        condition: service_healthy
+      vttablet_etsy_jobbatch:
+        condition: service_healthy
+      vttablet_etsy_mail:
+        condition: service_healthy
+      vttablet_etsy_payments_shard_001:
+        condition: service_healthy
+      vttablet_etsy_payments_shard_002:
+        condition: service_healthy
+      vttablet_etsy_risk:
+        condition: service_healthy
+      vttablet_etsy_shard_001:
+        condition: service_healthy
+      vttablet_etsy_shard_002:
+        condition: service_healthy
+      vttablet_giftcards:
+        condition: service_healthy
+    ports:
+      - "15307:15307"
+      - "16306:16306"
+      - "18086:18086"
+    environment:
+    - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    command: /usr/local/bin/procman /usr/local/bin/vtgate ${VTGATE_FLAGS}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "18086"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+      start_period: 1s
+
+  vtgate_post_start:
+    image: etsy-vitess:latest
+    environment:
+      - VTCTLDCLIENT_FLAGS=$VTCTLDCLIENT_FLAGS
+    volumes:
+      - ${PWD}/mysql_schemas/:/tmp
+    depends_on:
+      vtgate:
+        condition: service_healthy
+    command: |
+      /usr/local/bin/procman
+      /usr/local/bin/vtgate_post_start
+      /tmp
+
+  vtadmin:
+    image: etsy-vitess:latest
+    container_name: vtadmin
+    hostname: vtadmin
+    domainname: "${DOCKER_HOSTNAME}"
+    depends_on:
+      vtctld:
+        condition: service_healthy
+      vtctld_post_start:
+        condition: service_completed_successfully
+      vtgate:
+        condition: service_healthy
+    ports:
+      - "14200:14200"
+    command: /usr/local/bin/procman /usr/local/bin/vtadmin ${VTADMIN_FLAGS}
+    volumes:
+      - ${PWD}/conf/discovery.json:/opt/vitess/vtdataroot/discovery.json
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "14200", "/health"]
+      interval: 1s
+      timeout: 1s
+      retries: 60
+      start_period: 1s
+
+  vtadmin-web:
+    image: etsy-vitess:latest
+    container_name: vtadmin-web
+    hostname: vtadmin-web
+    domainname: "${DOCKER_HOSTNAME}"
+    depends_on:
+      vtadmin:
+        condition: service_healthy
+    ports:
+      - "14201:14201"
+    command: /usr/local/bin/vtadmin-web
+    volumes:
+      - ${PWD}/conf/config.js:/opt/vitess/vtadmin-web/config/config.js
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "14201", "/health"]
+      interval: 1s
+      timeout: 1s
+      retries: 60
+      start_period: 1s
+

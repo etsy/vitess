@@ -1,0 +1,165 @@
+{
+    "sharded": true,
+    "vindexes": {
+        "etsy_failover_shard_hash": {
+            "type": "hash"
+        },
+        "unicode_loose_md5": {
+            "type": "unicode_loose_md5"
+        }
+    },
+    "tables": {
+        "dap_test": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "shard_id"
+                }
+            ]
+        },
+        "debezium_signal": {
+            "column_vindexes": [
+                {
+                    "name": "unicode_loose_md5",
+                    "column": "id"
+                }
+            ]
+        },
+        "shop_data": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "shop_id"
+                }
+            ]
+        },
+        "shop_data2": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "shop_id"
+                }
+            ]
+        },
+        "shop_data_ccronin": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "shop_id"
+                }
+            ]
+        },
+        "jpm_test_costrem": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "shop_id"
+                }
+            ]
+        },
+        "shop_data3": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "shop_id"
+                }
+            ]
+        },
+        "test_key_val": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "k"
+                }
+            ]
+        },
+        "vitess_etet": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "legacy_partition_test_biweekly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "legacy_partition_test_daily": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "legacy_partition_test_hourly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "legacy_partition_test_monthly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "legacy_partition_test_weekly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "partition_test_biweekly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "partition_test_daily": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "partition_test_hourly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "partition_test_monthly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        },
+        "partition_test_weekly": {
+            "column_vindexes": [
+                {
+                    "name": "etsy_failover_shard_hash",
+                    "column": "id"
+                }
+            ]
+        }
+    }
+}

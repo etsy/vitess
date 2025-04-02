@@ -1,0 +1,26 @@
+{
+  "vt_dba": [
+    "test"
+  ],
+  "vt_app": [
+    "test"
+  ],
+  "vt_appdebug": [
+    "test"
+  ],
+  "vt_allprivs": [
+    "test"
+  ],
+  "repli": [
+    "test"
+  ],
+  "vt_filtered": [
+    "test"
+  ],
+  "vt_orc_client": [
+    "test"
+  ],
+  "paymentsrepli": [
+    "test"
+  ]
+}

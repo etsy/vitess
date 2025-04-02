@@ -93,3 +93,4 @@ report
 # mise files
 .mise.toml
 /errors/
+etsy_docker/datadir/
