@@ -19,7 +19,7 @@ CREATE TABLE `actioning_type_configurations` (
   `mnemonic` varchar(127) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Easy to remmber mnemonic for querying',
   `configuration_description` varchar(4095) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `actioning_type_id` bigint unsigned NOT NULL COMMENT 'Associated_actioning_type (eg. MASS_CONVO)',
-  `optional_arguments` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (_utf8mb4'') COMMENT 'JSON optional arguments to pass to the related actioning type class (eg. MASS CONVO template identifier)',
+  `additional_param_keys` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (_utf8mb4'') COMMENT 'JSON optional argument keys maybe required for the configuration.',
   `create_date` int unsigned NOT NULL DEFAULT '0',
   `update_date` int unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`actioning_type_configuration_id`),

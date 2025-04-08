@@ -8,6 +8,7 @@ CREATE TABLE `actioning` (
   `target_id` bigint unsigned NOT NULL COMMENT 'Target identifier (e.g. shop_id)',
   `actioning_type_id` bigint unsigned NOT NULL COMMENT 'Associated action type id',
   `actioning_type_configuration_id` bigint unsigned NOT NULL COMMENT 'Associated configuration required for the given action (e.g. action type of MASS_CONVO, with configuration for the LVM_MESSAGE ))',
+  `additional_params` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (_utf8mb4'') COMMENT 'JSON optional arguments to pass to the related action (eg. MASS CONVO template identifier)',
   `actioning_source_id` varchar(250) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Source type identifier, if it has an associated record (e.g. user_id)',
   `actioning_source_type` varchar(127) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Source target type (e.g. DAG | Agent )',
   `one_time_action_key` varchar(250) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Key used to validate actionings that are not idempotent, such as email sends',
@@ -31,6 +32,7 @@ CREATE TABLE `actioning_inclusions_exclusions` (
   `filter_type` tinyint unsigned NOT NULL DEFAULT '0' COMMENT 'Identify if the filter is an exclusion or an inclusion',
   `actioning_type_configuration_id` bigint unsigned NOT NULL COMMENT 'Identify the associated configuration required for the exclusion/inclusion (e.g. action type of MASS_CONVO, with configuration for the LVM_MESSAGE ))',
   `actioning_type_id` bigint unsigned NOT NULL COMMENT 'Identify the (e.g. action type of MASS_CONVO, with configuration for the LVM_MESSAGE ))',
+  `actioning_id` bigint unsigned DEFAULT '0' COMMENT 'Actioning id foreign key',
   `start_date` int unsigned NOT NULL,
   `end_date` int unsigned NOT NULL,
   `create_date` int unsigned NOT NULL,
@@ -505,8 +507,8 @@ CREATE TABLE `api_key_request_tokens` (
 CREATE TABLE `api_request_log_guest_user` (
   `api_request_log_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
-  `reference_txn_id` bigint unsigned NOT NULL,
-  `reference_txn_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reference_id` bigint unsigned NOT NULL,
+  `reference_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `url` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `headers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `request_body` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -518,14 +520,14 @@ CREATE TABLE `api_request_log_guest_user` (
   KEY `user_id` (`user_id`),
   KEY `create_date` (`create_date`),
   KEY `update_date` (`update_date`),
-  KEY `txn_id_txn_type` (`reference_txn_id`,`reference_txn_type`)
+  KEY `id_type` (`reference_id`,`reference_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `api_request_log_user` (
   `api_request_log_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
-  `reference_txn_id` bigint unsigned NOT NULL,
-  `reference_txn_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reference_id` bigint unsigned NOT NULL,
+  `reference_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `url` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `headers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `request_body` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -537,7 +539,7 @@ CREATE TABLE `api_request_log_user` (
   KEY `user_id` (`user_id`),
   KEY `create_date` (`create_date`),
   KEY `update_date` (`update_date`),
-  KEY `txn_id_txn_type` (`reference_txn_id`,`reference_txn_type`)
+  KEY `id_type` (`reference_id`,`reference_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `apple_attestation` (
@@ -1080,16 +1082,15 @@ CREATE TABLE `buyer_fee` (
   `buyer_location_region_code` char(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Region portion of an ISO3166_1 sub division code for the buyer',
   `seller_location_country_code` char(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ISO3166_1 country code for the seller',
   `seller_location_region_code` char(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Region portion of an ISO3166_1 sub division code for the seller',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Soft delete flag where 0 is not deleted and 1 is deleted',
   `create_date` bigint unsigned DEFAULT NULL COMMENT 'Date row was created in seconds since epoch',
-  `delete_date` bigint unsigned DEFAULT NULL COMMENT 'Date row was deleted in seconds since epoch',
   `update_date` bigint unsigned DEFAULT NULL COMMENT 'Date row was updated in seconds since epoch',
   PRIMARY KEY (`buyer_user_id`,`buyer_fee_id`),
-  KEY `id_delete_at` (`buyer_user_id`,`buyer_fee_id`,`delete_at`),
-  KEY `parent_id_id_delete_at` (`buyer_user_id`,`parent_type`,`parent_id`,`delete_at`,`buyer_fee_id`),
   KEY `create_at` (`create_at`),
   KEY `create_date` (`create_date`),
   KEY `update_date` (`update_date`),
-  KEY `delete_date` (`delete_date`)
+  KEY `is_deleted` (`buyer_user_id`,`buyer_fee_id`,`is_deleted`),
+  KEY `parent_id_is_deleted` (`buyer_user_id`,`parent_type`,`parent_id`,`is_deleted`,`buyer_fee_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 -- Owner: Payments Tax & Compliance
@@ -1147,7 +1148,7 @@ CREATE TABLE `buyer_initiated_offer_listing_details` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `buyer_order_feedback_survey_responses` (
-  `shop_id` bigint unsigned NOT NULL DEFAULT '0',
+  `shop_id` bigint unsigned NOT NULL,
   `transaction_id` bigint unsigned NOT NULL,
   `survey_response_id` bigint unsigned NOT NULL,
   `buyer_id` bigint unsigned DEFAULT '0',
@@ -1159,10 +1160,11 @@ CREATE TABLE `buyer_order_feedback_survey_responses` (
   `bof_version` smallint unsigned NOT NULL,
   `survey_response` tinyint unsigned NOT NULL,
   `campaign_label` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  PRIMARY KEY (`transaction_id`,`bof_version`),
+  PRIMARY KEY (`shop_id`,`transaction_id`,`bof_version`),
   UNIQUE KEY `survey_response_idx` (`survey_response_id`),
   KEY `create_date` (`create_date`),
-  KEY `update_date` (`update_date`)
+  KEY `update_date` (`update_date`),
+  KEY `transaction_bof_version_idx` (`transaction_id`,`bof_version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Survey responses collected from the Buyer Order Feedback experiment';
 
 CREATE TABLE `buyer_reported_transactions` (
@@ -1962,6 +1964,7 @@ CREATE TABLE `contentful_content` (
   `content` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `platform` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `slug` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `looker_landing_page_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`contentful_content_id`),
@@ -2943,6 +2946,114 @@ CREATE TABLE `embedding_stats_owners` (
   KEY `hash_bucket` (`hash_bucket`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `enforcement_actions` (
+  `action_id` bigint unsigned NOT NULL,
+  `decision_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `admin_action_id` bigint unsigned NOT NULL,
+  `state_key` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `mutation_key` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `state_value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `params` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `previous_state_value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `resulting_state_value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `action_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  PRIMARY KEY (`action_id`),
+  KEY `decision_id` (`decision_id`),
+  KEY `user_id` (`user_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `enforcement_conditions` (
+  `condition_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `decision_id` bigint unsigned NOT NULL,
+  `trigger_id` bigint unsigned NOT NULL COMMENT 'RTT control id, Apollo task id, etc',
+  `trigger_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'RTT, Securify, AFQ, Apollo, Atlas, etc',
+  `rcdm_control_id` bigint unsigned DEFAULT NULL,
+  `rcdm_control_revision_id` bigint unsigned DEFAULT NULL,
+  `evaluation_time` int NOT NULL,
+  `conditions` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `metadata` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  PRIMARY KEY (`condition_id`),
+  KEY `user_id` (`user_id`),
+  KEY `decision_id` (`decision_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `trigger_id` (`trigger_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `enforcement_decisions` (
+  `decision_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `etsy_request_uuid` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `flag_id` bigint unsigned NOT NULL,
+  `target_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `target_id` bigint unsigned NOT NULL,
+  `policy_id` bigint unsigned NOT NULL,
+  `policy_audit_id` bigint unsigned NOT NULL,
+  `no_op_reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'If no action taken, why? already_frozen, already_restricted, etc',
+  `created_by` bigint unsigned NOT NULL COMMENT 'Staff id or admin bot id',
+  `enforcement_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  PRIMARY KEY (`decision_id`),
+  KEY `user_id` (`user_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `enforcement_flag` (
+  `id` bigint unsigned NOT NULL,
+  `flag_id` bigint unsigned NOT NULL,
+  `related_flag_id` bigint unsigned NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
+  `is_guest` tinyint(1) NOT NULL DEFAULT '0',
+  `reporter_user_id` bigint unsigned NOT NULL,
+  `staff_id` bigint unsigned NOT NULL,
+  `flag_type_id` bigint unsigned NOT NULL,
+  `target_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `target_id` bigint unsigned NOT NULL,
+  `task_id` bigint unsigned NOT NULL,
+  `subject` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ref_count` int unsigned NOT NULL,
+  `is_auto_action` tinyint(1) NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  `review_state` tinyint(1) NOT NULL,
+  `review_reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `control_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `control_id` bigint unsigned NOT NULL,
+  `control_revision_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `flag_id` (`flag_id`),
+  KEY `account_id_flag_type_id_target_type_target_id` (`account_id`,`flag_type_id`,`target_type`,`target_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `enforcement_noop_actions` (
+  `noop_action_id` bigint unsigned NOT NULL,
+  `decision_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `admin_action_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT 'which admin action was attempted',
+  `blocked_by` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'reason the action could not be performed',
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`noop_action_id`),
+  KEY `decision_id` (`decision_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `estimated_delivery_framework_coverage` (
   `id` bigint unsigned NOT NULL,
   `base_listing_id` bigint unsigned NOT NULL,
@@ -3046,11 +3157,11 @@ CREATE TABLE `external_contact_users` (
   `hash_bucket` int unsigned NOT NULL,
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
-  PRIMARY KEY (`external_account_type`,`external_user_id`,`user_id`,`import_batch_id`),
+  PRIMARY KEY (`hash_bucket`,`external_account_type`,`external_user_id`,`user_id`,`import_batch_id`),
   KEY `create_date` (`create_date`),
   KEY `update_date` (`update_date`),
   KEY `user_id_import_batch_id` (`user_id`,`import_batch_id`),
-  KEY `hash_bucket` (`hash_bucket`)
+  KEY `ext_acct_type_ext_user_id_user_id_import_batch` (`external_account_type`,`external_user_id`,`user_id`,`import_batch_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `facebook_account` (
@@ -4607,6 +4718,7 @@ CREATE TABLE `guest_convo_users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `guest_favoritelistings` (
+  `hash_bucket` bigint unsigned NOT NULL,
   `uaid` varchar(28) COLLATE utf8mb4_unicode_ci NOT NULL,
   `listing_id` bigint unsigned NOT NULL,
   `listing_state` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -4614,12 +4726,13 @@ CREATE TABLE `guest_favoritelistings` (
   `shop_user_id` bigint unsigned NOT NULL,
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
-  `hash_bucket` bigint unsigned NOT NULL,
   `is_deleted` tinyint NOT NULL DEFAULT '0',
-  PRIMARY KEY (`uaid`,`listing_id`,`create_date`),
+  PRIMARY KEY (`hash_bucket`,`uaid`,`listing_id`,`create_date`),
   KEY `uaid` (`uaid`,`listing_state`,`create_date`),
   KEY `create_date` (`create_date`),
-  KEY `update_date` (`update_date`)
+  KEY `update_date` (`update_date`),
+  KEY `uaid_listing_id_create_date` (`uaid`,`listing_id`,`create_date`),
+  KEY `hash_bucket_uaid_listing_state_create_date` (`hash_bucket`,`uaid`,`listing_state`,`create_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `guest_message_pending` (
@@ -4783,6 +4896,80 @@ CREATE TABLE `guest_user_messages` (
   KEY `update_date` (`update_date`),
   KEY `create_date` (`create_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Sms messages for guest user';
+
+CREATE TABLE `guest_user_paybybank_accounts` (
+  `account_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `user_detail_id` bigint unsigned NOT NULL,
+  `cart_id` bigint unsigned DEFAULT NULL,
+  `processor` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_tail` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_icon_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_institution_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_checking_or_savings` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_fingerprint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` bigint unsigned NOT NULL,
+  `update_date` bigint unsigned NOT NULL,
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`,`account_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `detail_id` (`user_id`,`user_detail_id`),
+  KEY `user_type_account_status_cart` (`user_id`,`account_id`,`type`,`status`,`cart_id`),
+  KEY `processor_id` (`processor`(16),`processor_id`(128)),
+  KEY `user_fingerprint` (`user_id`,`account_fingerprint`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `guest_user_paybybank_details` (
+  `detail_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `processor` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` bigint unsigned NOT NULL,
+  `update_date` bigint unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`detail_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `processor_id` (`processor`(16),`processor_id`(128))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `guest_user_paybybank_payment_initiations` (
+  `payment_initiation_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `user_detail_id` bigint unsigned NOT NULL,
+  `user_account_id` bigint unsigned DEFAULT NULL,
+  `cart_id` bigint unsigned DEFAULT NULL,
+  `amount` int NOT NULL,
+  `currency` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_authorization_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `account_tail` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_icon_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_institution_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_type` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_fingerprint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expiration_date` bigint unsigned DEFAULT NULL,
+  `create_date` bigint unsigned NOT NULL,
+  `update_date` bigint unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`payment_initiation_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `detail_account_id` (`user_id`,`user_detail_id`,`user_account_id`),
+  KEY `user_status_cart` (`user_id`,`status`,`cart_id`),
+  KEY `processor_id` (`processor`(16),`processor_id`(128)),
+  KEY `user_cart_expiration` (`user_id`,`cart_id`,`expiration_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `guest_user_preferences` (
   `guest_user_id` bigint unsigned NOT NULL,
@@ -5018,6 +5205,29 @@ CREATE TABLE `guest_user_receipts_totals` (
   KEY `update_date` (`update_date`),
   KEY `create_date` (`create_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Receipt Totals for GuestUser';
+
+CREATE TABLE `guest_user_stripe_messages` (
+  `stripe_message_id` bigint unsigned NOT NULL,
+  `stripe_event_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `reference_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reference_id` bigint unsigned NOT NULL,
+  `parent_reference_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `parent_reference_id` bigint unsigned DEFAULT NULL,
+  `event_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '50 char is current longest on Stripe',
+  `environment` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `process_state` smallint unsigned NOT NULL DEFAULT '0',
+  `state_retry_count` int unsigned DEFAULT '0',
+  `next_process_date` int unsigned DEFAULT '0',
+  `message_body` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`stripe_message_id`),
+  KEY `next_process_date_composite` (`process_state`,`environment`,`next_process_date`,`update_date`),
+  KEY `update_date_index` (`update_date`),
+  KEY `key_reference_id_type` (`reference_id`,`reference_type`(128)),
+  KEY `key_parent_reference_id_type` (`parent_reference_id`,`parent_reference_type`(128))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `guest_user_transactions` (
   `shop_id` bigint unsigned NOT NULL,
@@ -5590,8 +5800,8 @@ CREATE TABLE `image_recognition_web_detect_image_urls` (
   `owner_type_id` tinyint unsigned NOT NULL COMMENT 'value from ObjectType',
   `image_recognition_audit_id` bigint unsigned NOT NULL COMMENT 'FK: etsy_shard.image_recognition_audit.image_recognition_audit_id',
   `image_recognition_domain_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT 'FK: etsy_aux.image_recognition_domains.image_recognition_domain_id',
-  `matching_image_url` varchar(2048) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Full matching image url',
-  `match_type` TINYINT unsigned NOT NULL DEFAULT '0',
+  `matching_image_url` varchar(2048) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Full matching image url',
+  `match_type` tinyint unsigned NOT NULL DEFAULT '0',
   `position` tinyint NOT NULL DEFAULT '0',
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
@@ -5603,7 +5813,9 @@ CREATE TABLE `image_recognition_web_detect_image_urls` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `images` (
-  `image_id` bigint unsigned NOT NULL DEFAULT '0',
+  `owner_id` bigint unsigned NOT NULL,
+  `owner_type_id` smallint NOT NULL,
+  `image_id` bigint unsigned NOT NULL,
   `type_id` smallint NOT NULL,
   `full_width` int unsigned DEFAULT NULL,
   `full_height` int unsigned DEFAULT NULL,
@@ -5622,20 +5834,34 @@ CREATE TABLE `images` (
   `create_date` int NOT NULL DEFAULT '0',
   `update_date` int NOT NULL DEFAULT '0',
   `marked_for_death` tinyint unsigned NOT NULL DEFAULT '0',
-  `owner_type_id` smallint NOT NULL,
-  `owner_id` bigint unsigned DEFAULT NULL,
   `storage_volume` smallint DEFAULT NULL,
   `file_extension` varchar(8) NOT NULL,
   `selected_color` int DEFAULT NULL,
   `attributes` varchar(128) NOT NULL DEFAULT '',
   `crop_data` varchar(255) NOT NULL DEFAULT '',
   `blur_hash` varchar(30) DEFAULT NULL,
-  PRIMARY KEY (`image_id`,`type_id`),
+  PRIMARY KEY (`owner_id`,`owner_type_id`,`image_id`,`type_id`),
   KEY `update_date` (`update_date`),
   KEY `create_date` (`create_date`),
   KEY `images_by_type_creation` (`type_id`,`create_date`),
-  KEY `owner_index` (`owner_id`,`owner_type_id`)
+  KEY `image_type_idx` (`image_id`,`type_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `imgly_photo_edit_filters` (
+  `photo_edit_filter_id` bigint unsigned NOT NULL COMMENT 'To identify the saved edit filter',
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Shop that is using the saved edit filter',
+  `edit_filter_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Name of the saved photo edit filter. User inputted',
+  `edit_filter_image_id` bigint unsigned NOT NULL COMMENT 'Image that is used as the saved edit filter image. This comes from the image edited when the saved edit filter was saved.',
+  `imgly_version` varchar(25) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Version of imgly used to create the saved edit filter',
+  `imgly_platform_version` varchar(25) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Version of the platform used to create the saved edit filter that is compatible with imgly',
+  `platform_used` varchar(25) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Platform used to create the saved edit filter',
+  `edit_values` varchar(10000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'Object of edit values for the imgly saved edit filter',
+  `create_date` int NOT NULL COMMENT 'When the saved edit filter was first created',
+  `update_date` int NOT NULL COMMENT 'Last time the saved edit filter was edited',
+  `last_used_date` int NOT NULL COMMENT 'Last time the saved edit filter was used on a photo edit that was saved.',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'Enables soft deletes',
+  PRIMARY KEY (`shop_id`,`photo_edit_filter_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Table to store saved photo edit filters';
 
 CREATE TABLE `import_batches` (
   `import_batch_id` bigint unsigned NOT NULL,
@@ -5674,8 +5900,8 @@ CREATE TABLE `imported_email` (
   `import_batch_id` bigint unsigned NOT NULL COMMENT 'which gearman batch this email was imported in',
   `email_domain` varchar(128) NOT NULL COMMENT 'a domain like gmail.com so this info is not lost in the hash',
   `creation_time` int unsigned NOT NULL,
-  PRIMARY KEY (`email_hash`,`user_id`),
-  KEY `hash_bucket` (`hash_bucket`)
+  PRIMARY KEY (`hash_bucket`,`email_hash`,`user_id`),
+  KEY `email_hash_user_id` (`email_hash`,`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Table to lookup all the users that imported an email';
 
 CREATE TABLE `imported_shop_data` (
@@ -5923,6 +6149,26 @@ CREATE TABLE `klarna_auth_initiations` (
   KEY `klarna_order_and_user` (`klarna_order_id`,`user_id`,`create_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `legacy_variations_migration_change_audits` (
+  `audit_id` bigint unsigned NOT NULL,
+  `shop_id` bigint unsigned NOT NULL,
+  `listing_id` bigint unsigned NOT NULL,
+  `listing_variation_id` bigint unsigned NOT NULL,
+  `original_property_id` int unsigned NOT NULL,
+  `updated_property_id` int unsigned NOT NULL,
+  `original_property_option_input_id` bigint unsigned NOT NULL,
+  `updated_property_option_input_id` bigint unsigned NOT NULL,
+  `state` int unsigned NOT NULL,
+  `update_source` int unsigned NOT NULL,
+  `metadata` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'JSON-encoded metadata for additional context',
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`audit_id`,`shop_id`,`listing_id`),
+  KEY `shop_listing` (`shop_id`,`listing_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `list_signup_requests` (
   `request_id` bigint NOT NULL,
   `email_id` bigint NOT NULL,
@@ -6120,6 +6366,7 @@ CREATE TABLE `listing_compliance_data` (
   `shop_id` bigint unsigned NOT NULL COMMENT 'Shop ID of the listing owning this compliance data',
   `gpsr_manufacturer_contact` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Name, address, contact of product manufacturer, as text for display',
   `gpsr_safety_warnings` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Any safety warnings disclosed for GPSR',
+  `language` tinyint unsigned DEFAULT NULL COMMENT 'Language ID for this record',
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`shop_id`,`listing_id`),
@@ -6459,6 +6706,35 @@ CREATE TABLE `listing_personalization_fields` (
   KEY `update_date_idx` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `listing_personalization_option` (
+  `option_id` bigint unsigned NOT NULL COMMENT 'Pk autogenerated and managed by EtsyModel_Tickets',
+  `question_id` bigint unsigned NOT NULL COMMENT 'Fk to PersonalizationQuestion',
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop',
+  `label` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Text for each question label',
+  `language` tinyint unsigned NOT NULL,
+  `sort_order` tinyint unsigned NOT NULL COMMENT 'Integer to sort options of a question',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'Soft delete column',
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  `delete_date` int unsigned DEFAULT NULL COMMENT 'Deleted date in epoch time',
+  PRIMARY KEY (`shop_id`,`question_id`,`option_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `listing_personalization_option_translation` (
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop (shardifier)',
+  `option_id` bigint unsigned NOT NULL COMMENT 'Fk to PersonalizationOption',
+  `language` tinyint unsigned NOT NULL,
+  `label` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Translated text for each option label',
+  `translation_system_id` smallint unsigned DEFAULT NULL,
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  PRIMARY KEY (`shop_id`,`option_id`,`language`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `listing_personalization_prices` (
   `listing_personalization_price_id` bigint unsigned NOT NULL DEFAULT '0',
   `listing_personalization_revision_id` bigint unsigned NOT NULL,
@@ -6474,6 +6750,66 @@ CREATE TABLE `listing_personalization_prices` (
   KEY `update_date_idx` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `listing_personalization_profile` (
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop',
+  `profile_id` bigint unsigned NOT NULL COMMENT 'Pk autogenerated and managed by EtsyModel_Tickets',
+  `is_required` tinyint unsigned NOT NULL DEFAULT '0' COMMENT 'Flag for personalization requirement',
+  `transition_phase` tinyint unsigned NOT NULL COMMENT 'integer to identify the transition phase',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'Soft delete column',
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  `delete_date` int unsigned DEFAULT NULL COMMENT 'Deleted date in epoch time',
+  PRIMARY KEY (`shop_id`,`profile_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `listing_personalization_profile_map` (
+  `listing_id` bigint unsigned NOT NULL COMMENT 'Listing ID',
+  `profile_id` bigint unsigned NOT NULL COMMENT 'Personalization profile id',
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'Soft delete column',
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  `delete_date` int unsigned DEFAULT NULL COMMENT 'Deleted date in epoch time',
+  PRIMARY KEY (`shop_id`,`listing_id`),
+  KEY `shop_id_profile_id` (`shop_id`,`profile_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `listing_personalization_question` (
+  `question_id` bigint unsigned NOT NULL COMMENT 'Pk autogenerated and managed by EtsyModel_Tickets',
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop',
+  `profile_id` bigint unsigned NOT NULL COMMENT 'Fk to PersonalizationProfile',
+  `question_text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Personalization question text',
+  `instructions` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Text to specify instructions for each question',
+  `language` tinyint unsigned NOT NULL,
+  `question_type` tinyint unsigned NOT NULL COMMENT 'integer to differentiate questions',
+  `sort_order` tinyint unsigned NOT NULL COMMENT 'Integer to sort questions in a personaliztion profile',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'Soft delete column',
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  `delete_date` int unsigned DEFAULT NULL COMMENT 'Deleted date in epoch time',
+  PRIMARY KEY (`shop_id`,`profile_id`,`question_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `listing_personalization_question_translation` (
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop (shardifier)',
+  `question_id` bigint unsigned NOT NULL COMMENT 'Fk to PersonalizationQuestion',
+  `language` tinyint unsigned NOT NULL,
+  `question_text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Translated personalization question text',
+  `instructions` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Translated text to specify instructions for each question',
+  `translation_system_id` smallint unsigned DEFAULT NULL,
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  PRIMARY KEY (`shop_id`,`question_id`,`language`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `listing_personalization_revisions` (
   `listing_personalization_revision_id` bigint unsigned NOT NULL,
   `listing_id` bigint unsigned NOT NULL,
@@ -6481,6 +6817,21 @@ CREATE TABLE `listing_personalization_revisions` (
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`shop_id`,`listing_id`,`listing_personalization_revision_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `listing_personalization_validation` (
+  `validation_id` bigint unsigned NOT NULL COMMENT 'Pk autogenerated and managed by EtsyModel_Tickets',
+  `question_id` bigint unsigned NOT NULL COMMENT 'Fk to PersonalizationQuestion',
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Fk to EtsyModel_Shop_Shop',
+  `validation_type` tinyint unsigned NOT NULL COMMENT 'integer to differentiate validations',
+  `validation_value` smallint DEFAULT NULL COMMENT 'integer to store the value of the validation',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'Soft delete column',
+  `create_date` int unsigned NOT NULL COMMENT 'Creation date in epoch time',
+  `update_date` int unsigned NOT NULL COMMENT 'Updated date in epoch time',
+  `delete_date` int unsigned DEFAULT NULL COMMENT 'Deleted date in epoch time',
+  PRIMARY KEY (`shop_id`,`question_id`,`validation_id`),
   KEY `create_date_idx` (`create_date`),
   KEY `update_date_idx` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
@@ -7135,6 +7486,7 @@ CREATE TABLE `loyalty_memberships` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `machine_translation_memory` (
+  `hash_bucket` int NOT NULL DEFAULT '0',
   `source_content_md5` binary(32) NOT NULL,
   `source_content` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `source_language` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -7715,18 +8067,18 @@ CREATE TABLE `offering_wholesale_decorator` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `offsite_ads_affiliate_widget_listings` (
+  `hash_bucket` int NOT NULL COMMENT 'For sharding via ArbitraryKeyHash',
   `user_id` bigint unsigned NOT NULL,
   `widget_id` bigint unsigned NOT NULL,
   `listing_id` bigint unsigned NOT NULL,
   `layout_index` tinyint NOT NULL COMMENT 'Location in the layout where this listing is displayed',
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
-  `hash_bucket` int NOT NULL COMMENT 'For sharding via ArbitraryKeyHash',
-  PRIMARY KEY (`widget_id`,`layout_index`),
+  PRIMARY KEY (`hash_bucket`,`widget_id`,`layout_index`),
   KEY `user_id` (`user_id`),
   KEY `create_date` (`create_date`),
-  KEY `hash_bucket` (`hash_bucket`),
-  KEY `listing_id` (`listing_id`)
+  KEY `listing_id` (`listing_id`),
+  KEY `widget_id_layout_index` (`widget_id`,`layout_index`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `offsite_ads_affiliate_widget_user` (
@@ -7747,6 +8099,7 @@ CREATE TABLE `offsite_ads_affiliate_widget_user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `offsite_ads_affiliate_widget_widget` (
+  `hash_bucket` int NOT NULL COMMENT 'For sharding via ArbitraryKeyHash',
   `widget_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
   `awin_publisher_id` bigint unsigned NOT NULL COMMENT 'AWIN ID for the creator of this widget',
@@ -7759,11 +8112,10 @@ CREATE TABLE `offsite_ads_affiliate_widget_widget` (
   `merch_collection_id` bigint unsigned NOT NULL DEFAULT '0',
   `hide_listing_titles` tinyint unsigned NOT NULL DEFAULT '0',
   `hide_shadow` tinyint unsigned NOT NULL DEFAULT '0',
-  `hash_bucket` int NOT NULL COMMENT 'For sharding via ArbitraryKeyHash',
-  PRIMARY KEY (`widget_id`),
+  PRIMARY KEY (`hash_bucket`,`widget_id`),
   KEY `user_id` (`user_id`),
   KEY `create_date` (`create_date`),
-  KEY `hash_bucket` (`hash_bucket`)
+  KEY `widget_id` (`widget_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `offsite_checkout_google_order` (
@@ -7924,6 +8276,18 @@ CREATE TABLE `olf_experiment_bucketing_audit` (
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`shop_id`,`listing_id`,`experiment_id`,`change_timestamp`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `olf_image_disapproval` (
+  `shop_id` bigint unsigned NOT NULL COMMENT 'Shardifier',
+  `listing_id` bigint unsigned NOT NULL,
+  `image_id` bigint unsigned NOT NULL COMMENT 'Tracks the Images.image_id that was disapproved',
+  `version` int unsigned NOT NULL COMMENT 'Tracks the Images.version that was disapproved',
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`shop_id`,`listing_id`,`image_id`,`version`),
   KEY `create_date` (`create_date`),
   KEY `update_date` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
@@ -8467,6 +8831,25 @@ CREATE TABLE `personalization_xout_tracking` (
   PRIMARY KEY (`viewing_user_id`,`listing_id`,`shop_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `phone_number` (
+  `user_id` bigint unsigned NOT NULL COMMENT 'user_id',
+  `phone_number_id` bigint unsigned NOT NULL COMMENT 'phone number id',
+  `phone_number` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'phone number',
+  `country_code` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '3 letter country iso code for phone number',
+  `is_primary` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'flag representing if this is a primary phone number',
+  `fallback_channel` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'string representing fallback channel',
+  `preferred_channel` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'string representing fallback channel',
+  `phone_number_confirmed` tinyint(1) DEFAULT NULL COMMENT 'phone number confirmed',
+  `phone_number_confirmed_date` int unsigned NOT NULL COMMENT 'phone number confirmed date',
+  `is_deleted` tinyint unsigned NOT NULL COMMENT 'soft delete flag',
+  `create_date` int unsigned NOT NULL COMMENT 'created date',
+  `update_date` int unsigned NOT NULL COMMENT 'updated date',
+  PRIMARY KEY (`user_id`,`phone_number_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`),
+  KEY `phone_number_confirmed_date_idx` (`phone_number_confirmed_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='phone number table ucsed for sending user comms. Example security messages';
+
 CREATE TABLE `plaid_session_audit` (
   `plaid_session_audit_id` bigint unsigned NOT NULL COMMENT 'Plaid user audit ID',
   `plaid_session_id` bigint unsigned NOT NULL COMMENT 'References the Plaid session',
@@ -8615,33 +8998,6 @@ CREATE TABLE `processing_start_times_calculations` (
   KEY `create_date_idx` (`create_date`),
   KEY `update_date_idx` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
-
-CREATE TABLE `product_feeds_listings` (
-  `shop_id` bigint unsigned NOT NULL,
-  `listing_id` bigint unsigned NOT NULL,
-  `vendor_id` tinyint unsigned NOT NULL,
-  `country_id` int unsigned NOT NULL DEFAULT '209',
-  `language_id` tinyint unsigned NOT NULL DEFAULT '0',
-  `sub_account_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `is_syndicated` tinyint unsigned NOT NULL DEFAULT '0',
-  `last_syndication_date` int unsigned NOT NULL DEFAULT '0',
-  `last_syndication_hash` char(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `last_syndication_sub_account_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `filter_reason` tinyint unsigned NOT NULL DEFAULT '0',
-  `ban_reason` tinyint unsigned NOT NULL DEFAULT '0',
-  `is_shop_banned` tinyint unsigned NOT NULL DEFAULT '0',
-  `update_date` int unsigned NOT NULL,
-  `create_date` int unsigned NOT NULL,
-  `touch_to_force_syndication` tinyint unsigned NOT NULL DEFAULT '0',
-  `filter_note` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `banned_by_staff_id` bigint DEFAULT NULL,
-  `banned_date` int DEFAULT NULL,
-  `is_banned` tinyint unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`shop_id`,`vendor_id`,`country_id`,`language_id`,`listing_id`),
-  KEY `create_date_idx` (`create_date`),
-  KEY `update_date_idx` (`update_date`),
-  KEY `shop_listing_idx` (`shop_id`,`listing_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Metadata about the syndication of listings to third party markets';
 
 CREATE TABLE `product_feeds_shops` (
   `shop_id` bigint unsigned NOT NULL,
@@ -9304,7 +9660,6 @@ CREATE TABLE `readiness_state_definition` (
   `readiness_state` int unsigned DEFAULT NULL,
   `min_processing_days` int unsigned DEFAULT NULL,
   `max_processing_days` int unsigned DEFAULT NULL,
-  `state` int NOT NULL DEFAULT '1',
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`shop_id`,`readiness_state_id`),
@@ -10084,37 +10439,6 @@ CREATE TABLE `sender_conversation_reason` (
   `receiver_user_id` bigint unsigned NOT NULL,
   `reason_id` tinyint DEFAULT NULL,
   PRIMARY KEY (`sender_user_id`,`conversation_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
-
-CREATE TABLE `sharded_flag` (
-  `sharded_flag_id` bigint unsigned NOT NULL,
-  `flag_id` bigint unsigned NOT NULL,
-  `related_flag_id` bigint unsigned NOT NULL,
-  `user_id` bigint unsigned NOT NULL,
-  `reporter_user_id` bigint unsigned NOT NULL,
-  `staff_id` bigint unsigned NOT NULL,
-  `flag_type_id` bigint unsigned NOT NULL,
-  `target_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `target_id` bigint unsigned NOT NULL,
-  `task_id` bigint unsigned NOT NULL,
-  `subject` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `ref_count` int unsigned NOT NULL,
-  `is_auto_action` tinyint(1) NOT NULL,
-  `create_date` int unsigned NOT NULL,
-  `update_date` int unsigned NOT NULL,
-  `review_state` tinyint(1) NOT NULL,
-  `review_reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `control_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `control_id` bigint unsigned NOT NULL,
-  `control_revision_id` bigint unsigned NOT NULL,
-  PRIMARY KEY (`sharded_flag_id`),
-  UNIQUE KEY `flag_id` (`flag_id`),
-  KEY `flag_id_user_id` (`flag_id`,`user_id`),
-  KEY `user_id_flag_type_id_target_type_target_id` (`user_id`,`flag_type_id`,`target_type`,`target_id`),
-  KEY `create_date` (`create_date`),
-  KEY `update_date` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `shared_stash_listings` (
@@ -10929,6 +11253,7 @@ CREATE TABLE `shop_content_review` (
   `vendor_evaluation_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `processor` tinyint unsigned NOT NULL COMMENT 'Vendor that will process shop data',
   `type` tinyint unsigned NOT NULL,
+  `decision_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`shop_id`,`shop_content_review_id`),
@@ -10936,32 +11261,6 @@ CREATE TABLE `shop_content_review` (
   KEY `create_date_idx` (`create_date`),
   KEY `update_date_idx` (`update_date`),
   KEY `compound_idx` (`shop_id`,`listing_id`,`content_hash`,`status`,`process_status`,`environment`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
-
-CREATE TABLE `shop_content_review_audit` (
-  `shop_content_review_audit_id` bigint unsigned NOT NULL,
-  `shop_content_review_id` bigint unsigned NOT NULL,
-  `shop_id` bigint unsigned NOT NULL,
-  `last_response_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `scans` int unsigned NOT NULL,
-  `environment` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `create_date` int unsigned NOT NULL,
-  `update_date` int unsigned NOT NULL,
-  PRIMARY KEY (`shop_id`,`shop_content_review_audit_id`),
-  KEY `create_date_idx` (`create_date`),
-  KEY `update_date_idx` (`update_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
-
-CREATE TABLE `shop_content_review_settings` (
-  `shop_content_review_settings_id` bigint unsigned NOT NULL,
-  `shop_id` bigint unsigned NOT NULL,
-  `key` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `value` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `create_date` int unsigned NOT NULL,
-  `update_date` int unsigned NOT NULL,
-  PRIMARY KEY (`shop_content_review_settings_id`),
-  KEY `create_date_idx` (`create_date`),
-  KEY `update_date_idx` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `shop_content_seen_tracking` (
@@ -11056,7 +11355,7 @@ CREATE TABLE `shop_customer_due_diligence` (
 
 CREATE TABLE `shop_data` (
   `shop_id` bigint unsigned NOT NULL,
-  `status` varchar(255) CHARACTER SET utf8 NOT NULL,
+  `status` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
   `status_date` int NOT NULL DEFAULT '0',
   `user_id` bigint unsigned NOT NULL,
   `address_id` bigint unsigned NOT NULL DEFAULT '0',
@@ -11067,7 +11366,7 @@ CREATE TABLE `shop_data` (
   `lon` int NOT NULL DEFAULT '0',
   `city` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `region` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(255) CHARACTER SET utf8 NOT NULL,
+  `name` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
   `headline` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `message_to_buyers` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -11088,7 +11387,7 @@ CREATE TABLE `shop_data` (
   `digital_message_to_buyers` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `geonameid` bigint unsigned NOT NULL DEFAULT '0',
   `geonameid_update_date` int NOT NULL DEFAULT '0',
-  `geonameid_hierarchy` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `geonameid_hierarchy` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
   `logo_image_id` bigint unsigned DEFAULT NULL,
   `large_banner_image_id` bigint unsigned DEFAULT NULL,
   `branding_option` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '0 NONE, 1 SMALL_BANNER, 2 LARGE_BANNER',
@@ -11107,7 +11406,7 @@ CREATE TABLE `shop_data` (
   `next_tier_subscription_charge_date` int unsigned NOT NULL DEFAULT '0',
   `is_locked_vacation` tinyint(1) NOT NULL DEFAULT '0',
   `vacation_type` int unsigned NOT NULL DEFAULT '0',
-  `facebook_verification_key` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `facebook_verification_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
   `trader_distinction` tinyint unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`shop_id`),
   UNIQUE KEY `shop_name_unique` (`name`),
@@ -11115,7 +11414,8 @@ CREATE TABLE `shop_data` (
   KEY `status` (`status`),
   KEY `shipping_score` (`shipping_score`),
   KEY `first_sale_date` (`first_sale_date`),
-  KEY `next_tier_subscription_charge_date_idx` (`next_tier_subscription_charge_date`)
+  KEY `next_tier_subscription_charge_date_idx` (`next_tier_subscription_charge_date`),
+  KEY `tier_idx` (`tier`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `shop_data_translations` (
@@ -13392,15 +13692,16 @@ CREATE TABLE `shop_shipping_label_customs_items` (
   `shop_id` bigint unsigned NOT NULL,
   `shipping_label_id` bigint unsigned NOT NULL,
   `customs_item_id` bigint unsigned NOT NULL,
-  `description` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `description` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `weight` decimal(10,4) DEFAULT '0.0000',
-  `weight_units` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `weight_units` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `quantity` int unsigned NOT NULL DEFAULT '0',
   `value` int unsigned NOT NULL DEFAULT '0',
-  `value_currency_code` varchar(3) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'USD',
+  `value_currency_code` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'USD',
+  `country_of_origin_id` smallint unsigned NOT NULL DEFAULT '0',
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
-  `tariff_code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `tariff_code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`shop_id`,`shipping_label_id`,`customs_item_id`),
   KEY `create_date_index` (`create_date`),
   KEY `update_date_index` (`update_date`)
@@ -14344,10 +14645,13 @@ CREATE TABLE `shop_shipping_labels_usps` (
   `pb_shipment_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `carrier_route_code` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `seller_rate_type` smallint unsigned NOT NULL DEFAULT '0',
+  `refund_dispute_state` smallint unsigned NOT NULL DEFAULT '0',
+  `refund_dispute_id` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`shop_id`,`shipping_label_id`),
   KEY `create_date` (`create_date`),
   KEY `update_date` (`update_date`),
-  KEY `shipping_label_create_date_idx` (`shipping_label_id`,`create_date`)
+  KEY `shipping_label_create_date_idx` (`shipping_label_id`,`create_date`),
+  KEY `refund_dispute_state` (`refund_dispute_state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `shop_shipping_labels_usps_adjustment` (
@@ -16210,6 +16514,20 @@ CREATE TABLE `spareserve_rollup` (
   KEY `create_date` (`create_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `ssat_score` (
+  `buyer_id` bigint unsigned NOT NULL,
+  `receipt_id` bigint unsigned NOT NULL,
+  `ssat_score` tinyint NOT NULL DEFAULT '-1' COMMENT 'boolean indicating SSAT Score',
+  `seller_id` bigint unsigned NOT NULL,
+  `response_date` int unsigned NOT NULL DEFAULT '0',
+  `convo_id` bigint unsigned NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`buyer_id`,`receipt_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 COMMENT='Keep track of SSAT scores from buyers';
+
 CREATE TABLE `stash_listings` (
   `stash_listing_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
@@ -16390,7 +16708,7 @@ CREATE TABLE `tier_subscription_changes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `transaction_file_attachments` (
-  `shop_id` bigint unsigned NOT NULL DEFAULT '0',
+  `shop_id` bigint unsigned NOT NULL,
   `transaction_id` bigint unsigned NOT NULL DEFAULT '0',
   `shop_files_id` bigint unsigned NOT NULL DEFAULT '0',
   `rank` int unsigned NOT NULL DEFAULT '0',
@@ -16400,7 +16718,10 @@ CREATE TABLE `transaction_file_attachments` (
   `create_date` int unsigned DEFAULT NULL,
   `update_date` int unsigned DEFAULT NULL,
   `expiration_date` int unsigned DEFAULT NULL,
-  PRIMARY KEY (`transaction_id`,`shop_files_id`)
+  PRIMARY KEY (`shop_id`,`transaction_id`,`shop_files_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `transaction_shop_files_idx` (`transaction_id`,`shop_files_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `transaction_property_values` (
@@ -16420,16 +16741,17 @@ CREATE TABLE `transaction_property_values` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `transaction_translations` (
-  `shop_id` bigint unsigned NOT NULL DEFAULT '0',
-  `transaction_id` bigint unsigned NOT NULL DEFAULT '0',
+  `shop_id` bigint unsigned NOT NULL,
+  `transaction_id` bigint unsigned NOT NULL,
   `language` tinyint unsigned NOT NULL,
   `title` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `description` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
-  PRIMARY KEY (`transaction_id`,`language`),
+  PRIMARY KEY (`shop_id`,`transaction_id`,`language`),
   KEY `create_date` (`create_date`),
-  KEY `update_date` (`update_date`)
+  KEY `update_date` (`update_date`),
+  KEY `transaction_language_idx` (`transaction_id`,`language`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `transactions_cost_item` (
@@ -16452,8 +16774,8 @@ CREATE TABLE `transactions_cost_item` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `transactions_data` (
-  `shop_id` bigint unsigned NOT NULL DEFAULT '0',
-  `transaction_id` bigint unsigned NOT NULL DEFAULT '0',
+  `shop_id` bigint unsigned NOT NULL,
+  `transaction_id` bigint unsigned NOT NULL,
   `listing_json` text NOT NULL,
   `decorator_type` smallint unsigned DEFAULT NULL,
   `decoration_id` bigint unsigned DEFAULT NULL,
@@ -16461,8 +16783,9 @@ CREATE TABLE `transactions_data` (
   `ship_to_third_party` tinyint(1) NOT NULL DEFAULT '0',
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
-  PRIMARY KEY (`transaction_id`),
-  KEY `update_date` (`update_date`)
+  PRIMARY KEY (`shop_id`,`transaction_id`),
+  KEY `update_date` (`update_date`),
+  KEY `transaction_idx` (`transaction_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `transactions_shipping` (
@@ -16493,7 +16816,7 @@ CREATE TABLE `transactions_shipping` (
   `paid_date` int unsigned NOT NULL,
   `shipping_label_id` bigint unsigned NOT NULL,
   `shop_shipping_profile_id` bigint unsigned DEFAULT NULL COMMENT 'Equivalent to shipping_profile_id on listings and shop_shipping_profile',
-  PRIMARY KEY (`transaction_id`),
+  PRIMARY KEY (`shop_id`,`transaction_id`),
   KEY `update_date` (`shipped_date`),
   KEY `shop_shipped_date` (`shop_id`,`shipped_date`),
   KEY `overdue_shipments` (`estimated_max_shipped_date`,`shipped_date`,`num_times_delayed`),
@@ -16501,7 +16824,8 @@ CREATE TABLE `transactions_shipping` (
   KEY `shop_receipt` (`shop_id`,`receipt_id`),
   KEY `shop_paid_date` (`shop_id`,`paid_date`),
   KEY `create_date_idx` (`create_date`),
-  KEY `update_date2` (`update_date`)
+  KEY `update_date2` (`update_date`),
+  KEY `transaction_idx` (`transaction_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `treasury` (
@@ -17580,6 +17904,80 @@ CREATE TABLE `user_notifications_favorite_shops_banner` (
   PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `user_paybybank_accounts` (
+  `account_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `user_detail_id` bigint unsigned NOT NULL,
+  `cart_id` bigint unsigned DEFAULT NULL,
+  `processor` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_tail` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_icon_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_institution_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_checking_or_savings` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_fingerprint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` bigint unsigned NOT NULL,
+  `update_date` bigint unsigned NOT NULL,
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`,`account_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `detail_id` (`user_id`,`user_detail_id`),
+  KEY `user_type_account_status_cart` (`user_id`,`account_id`,`type`,`status`,`cart_id`),
+  KEY `processor_id` (`processor`(16),`processor_id`(128)),
+  KEY `user_fingerprint` (`user_id`,`account_fingerprint`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `user_paybybank_details` (
+  `detail_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `processor` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` bigint unsigned NOT NULL,
+  `update_date` bigint unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`detail_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `processor_id` (`processor`(16),`processor_id`(128))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `user_paybybank_payment_initiations` (
+  `payment_initiation_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `user_detail_id` bigint unsigned NOT NULL,
+  `user_account_id` bigint unsigned DEFAULT NULL,
+  `cart_id` bigint unsigned DEFAULT NULL,
+  `amount` int NOT NULL,
+  `currency` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_authorization_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `processor_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `account_tail` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_icon_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_institution_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_type` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_fingerprint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expiration_date` bigint unsigned DEFAULT NULL,
+  `create_date` bigint unsigned NOT NULL,
+  `update_date` bigint unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`payment_initiation_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `detail_account_id` (`user_id`,`user_detail_id`,`user_account_id`),
+  KEY `user_status_cart` (`user_id`,`status`,`cart_id`),
+  KEY `processor_id` (`processor`(16),`processor_id`(128)),
+  KEY `user_cart_expiration` (`user_id`,`cart_id`,`expiration_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `user_persisted_ui_state` (
   `user_id` bigint unsigned NOT NULL,
   `state_key` varchar(255) NOT NULL,
@@ -18304,6 +18702,29 @@ CREATE TABLE `user_strikes` (
   KEY `update_date` (`update_date`),
   KEY `user_category_idx` (`user_id`,`category_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `user_stripe_messages` (
+  `stripe_message_id` bigint unsigned NOT NULL,
+  `stripe_event_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `reference_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reference_id` bigint unsigned NOT NULL,
+  `parent_reference_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `parent_reference_id` bigint unsigned DEFAULT NULL,
+  `event_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '50 char is current longest on Stripe',
+  `environment` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `process_state` smallint unsigned NOT NULL DEFAULT '0',
+  `state_retry_count` int unsigned DEFAULT '0',
+  `next_process_date` int unsigned DEFAULT '0',
+  `message_body` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`stripe_message_id`),
+  KEY `next_process_date_composite` (`process_state`,`environment`,`next_process_date`,`update_date`),
+  KEY `update_date_index` (`update_date`),
+  KEY `key_reference_id_type` (`reference_id`,`reference_type`(128)),
+  KEY `key_parent_reference_id_type` (`parent_reference_id`,`parent_reference_type`(128))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `user_sweepstakes_eligibility` (
   `sweepstakes_record_id` bigint NOT NULL,
@@ -19148,6 +19569,94 @@ CREATE TABLE `vat_audit_log` (
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   PRIMARY KEY (`buyer_id`,`receipt_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `vendor_content_review` (
+  `vendor_content_review_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `content_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content_hash` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reference_id` bigint unsigned NOT NULL,
+  `vendor` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source_environment` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `target_environment` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `process_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `evaluation_attempts` int unsigned NOT NULL DEFAULT '0',
+  `evaluation_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `evaluation_request_time` bigint unsigned DEFAULT NULL,
+  `evaluation_response_time` bigint unsigned DEFAULT NULL,
+  `evaluation_time` bigint unsigned DEFAULT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`vendor_content_review_id`),
+  KEY `content_hash_idx` (`content_hash`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`),
+  KEY `compound_idx` (`user_id`,`reference_id`,`content_hash`,`process_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `vendor_content_review_queue_handler` (
+  `vendor_content_review_queue_handler_id` bigint unsigned NOT NULL,
+  `shop_content_review_id` bigint unsigned NOT NULL,
+  `shop_id` bigint unsigned NOT NULL,
+  `listing_id` bigint unsigned NOT NULL,
+  `last_response_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `process_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT 'Default 0, 0: pending, 1: sent, 2: failed',
+  `scans` int unsigned NOT NULL,
+  `environment` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`shop_id`,`listing_id`,`vendor_content_review_queue_handler_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `vendor_content_review_result` (
+  `vendor_content_review_result_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `vendor_content_review_id` bigint unsigned NOT NULL COMMENT 'FK: etsy_shard.vendor_content_review.vendor_content_review_id',
+  `content_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `vendor` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `vendor_reference_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `vendor_evaluation_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `decision_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `safe_revision_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `violative_revision_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `policies_summary` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `reviewer_iframe_url` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `raw_response` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`vendor_content_review_result_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `vendor_content_review_revision` (
+  `vendor_content_review_revision_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `decision_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `content_hash` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`vendor_content_review_revision_id`),
+  KEY `content_hash_idx` (`content_hash`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `vendor_content_review_snapshot` (
+  `vendor_content_review_snapshot_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `vendor_content_review_id` bigint unsigned NOT NULL COMMENT 'FK: etsy_shard.vendor_content_review.vendor_content_review_id',
+  `content_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`user_id`,`vendor_content_review_snapshot_id`),
+  KEY `create_date_idx` (`create_date`),
+  KEY `update_date_idx` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `venue_listings_override` (

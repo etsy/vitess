@@ -379,6 +379,14 @@
                 }
             ]
         },
+        "bank_txns": {
+            "columnVindexes": [
+                {
+                    "column": "reference_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
         "processor_txn_reference": {
             "columnVindexes": [
                 {
@@ -510,6 +518,14 @@
                 }
             ]
         },
+        "tds_card_arts": {
+            "columnVindexes": [
+                {
+                    "column": "tds_card_art_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
         "tds_gift_cards": {
             "columnVindexes": [
                 {
@@ -546,6 +562,22 @@
             "columnVindexes": [
                 {
                     "column": "buyer_user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "credit_awards": {
+            "columnVindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_payments_shard_hash"
+                }
+            ]
+        },
+        "credit_award_campaigns": {
+            "columnVindexes": [
+                {
+                    "column": "campaign_id",
                     "name": "etsy_payments_shard_hash"
                 }
             ]

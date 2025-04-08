@@ -2351,7 +2351,7 @@ CREATE TABLE `treasury_trending_tag` (
 
 CREATE TABLE `tt_splash_listings` (
   `listing_id` bigint unsigned NOT NULL,
-  `shop_id` int unsigned NOT NULL,
+  `shop_id` bigint unsigned NOT NULL,
   `bucket` int unsigned NOT NULL,
   `creation_time` int unsigned NOT NULL,
   `curator_user_id` bigint unsigned NOT NULL,

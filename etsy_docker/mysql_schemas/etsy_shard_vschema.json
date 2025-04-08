@@ -409,6 +409,14 @@
                 }
             ]
         },
+        "buyer_order_feedback_survey_responses": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
         "buyer_reported_transactions": {
             "column_vindexes": [
                 {
@@ -513,6 +521,62 @@
                 }
             ]
         },
+        "cart_children": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
+        "cart_data": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
+        "cart_listings": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
+        "cart_listing_customization": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
+        "cart_promotion": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
+        "cart_promotionlisting": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
+        "cart_properties": {
+            "column_vindexes": [
+                {
+                    "column": "cart_id",
+                    "name": "etsy_shard_hybrid_carts_index"
+                }
+            ]
+        },
         "certificate_meta_info": {
             "column_vindexes": [
                 {
@@ -529,11 +593,59 @@
                 }
             ]
         },
+        "chargeback_action_audit": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
+                }
+            ]
+        },
+        "chargeback_action_audit_data": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
+                }
+            ]
+        },
+        "chargeback_evidence": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
+                }
+            ]
+        },
+        "chargeback_evidence_child": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
+                }
+            ]
+        },
+        "chargeback_filter_audit": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
+                }
+            ]
+        },
         "chargeback_repayment": {
             "column_vindexes": [
                 {
                     "column": "seller_id",
                     "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "chargeback_review": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
                 }
             ]
         },
@@ -993,6 +1105,46 @@
                 }
             ]
         },
+        "enforcement_actions": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "enforcement_conditions": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "enforcement_decisions": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "enforcement_flag": {
+            "column_vindexes": [
+                {
+                    "column": "account_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
+                }
+            ]
+        },
+        "enforcement_noop_actions": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
         "et_interaction_data": {
             "column_vindexes": [
                 {
@@ -1046,6 +1198,30 @@
                 {
                     "column": "user_id",
                     "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "external_contact_users": {
+            "column_vindexes": [
+                {
+                    "column": "hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
+                }
+            ]
+        },
+        "facebook_account": {
+            "column_vindexes": [
+                {
+                    "column": "facebook_account_id",
+                    "name": "etsy_shard_hybrid_facebook_account"
+                }
+            ]
+        },
+        "facebook_account_profile": {
+            "column_vindexes": [
+                {
+                    "column": "facebook_account_id",
+                    "name": "etsy_shard_hybrid_facebook_account"
                 }
             ]
         },
@@ -1473,11 +1649,35 @@
                 }
             ]
         },
+        "guest_buyer_targeted_offer": {
+            "column_vindexes": [
+                {
+                    "column": "buyer_uaid_hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
+                }
+            ]
+        },
+        "guest_buyer_targeted_offer_event": {
+            "column_vindexes": [
+                {
+                    "column": "buyer_uaid_hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
+                }
+            ]
+        },
         "guest_convo_users": {
             "column_vindexes": [
                 {
                     "column": "guest_user_id",
                     "name": "etsy_shard_hybrid_guest_user"
+                }
+            ]
+        },
+        "guest_favoritelistings": {
+            "column_vindexes": [
+                {
+                    "column": "hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
                 }
             ]
         },
@@ -1705,6 +1905,25 @@
                 }
             ]
         },
+        "images": {
+            "column_vindexes": [
+                {
+                    "columns": [
+                        "owner_type_id",
+                        "owner_id"
+                    ],
+                    "name": "etsy_multisharded_hybrid"
+                }
+            ]
+        },
+        "imgly_photo_edit_filters": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
         "import_batches": {
             "column_vindexes": [
                 {
@@ -1718,6 +1937,14 @@
                 {
                     "column": "shop_id",
                     "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "imported_email": {
+            "column_vindexes": [
+                {
+                    "column": "hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
                 }
             ]
         },
@@ -1798,6 +2025,14 @@
                 {
                     "column": "user_id",
                     "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "legacy_variations_migration_change_audits": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
                 }
             ]
         },
@@ -2033,6 +2268,22 @@
                 }
             ]
         },
+        "listing_personalization_option_translation": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "listing_personalization_option": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
         "listing_personalization_prices": {
             "column_vindexes": [
                 {
@@ -2041,7 +2292,47 @@
                 }
             ]
         },
+        "listing_personalization_profile": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "listing_personalization_profile_map": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "listing_personalization_question_translation": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "listing_personalization_question": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
         "listing_personalization_revisions": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "listing_personalization_validation": {
             "column_vindexes": [
                 {
                     "column": "shop_id",
@@ -2321,6 +2612,14 @@
                 }
             ]
         },
+        "machine_translation_memory": {
+            "column_vindexes": [
+                {
+                    "column": "hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
+                }
+            ]
+        },
         "mail_schedule_email_data": {
             "column_vindexes": [
                 {
@@ -2505,11 +2804,27 @@
                 }
             ]
         },
+        "offsite_ads_affiliate_widget_listings": {
+            "column_vindexes": [
+                {
+                    "column": "hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
+                }
+            ]
+        },
         "offsite_ads_affiliate_widget_user": {
             "column_vindexes": [
                 {
                     "column": "user_id",
                     "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "offsite_ads_affiliate_widget_widget": {
+            "column_vindexes": [
+                {
+                    "column": "hash_bucket",
+                    "name": "etsy_shard_sqlite_arbitrary_key_index"
                 }
             ]
         },
@@ -2586,6 +2901,14 @@
             ]
         },
         "olf_experiment_bucketing_audit": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "olf_image_disapproval": {
             "column_vindexes": [
                 {
                     "column": "shop_id",
@@ -2817,6 +3140,14 @@
                 }
             ]
         },
+        "phone_number": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
         "processing_schedule_migration_exclusions": {
             "column_vindexes": [
                 {
@@ -2826,14 +3157,6 @@
             ]
         },
         "processing_start_times_calculations": {
-            "column_vindexes": [
-                {
-                    "column": "shop_id",
-                    "name": "etsy_shard_hybrid_shop"
-                }
-            ]
-        },
-        "product_feeds_listings": {
             "column_vindexes": [
                 {
                     "column": "shop_id",
@@ -3078,6 +3401,14 @@
                 {
                     "column": "shop_id",
                     "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "purchase_data": {
+            "column_vindexes": [
+                {
+                    "column": "buyer_user_id",
+                    "name": "etsy_shard_hybrid_user_or_guest_user"
                 }
             ]
         },
@@ -3469,14 +3800,6 @@
             "column_vindexes": [
                 {
                     "column": "sender_user_id",
-                    "name": "etsy_shard_hybrid_user"
-                }
-            ]
-        },
-        "sharded_flag": {
-            "column_vindexes": [
-                {
-                    "column": "user_id",
                     "name": "etsy_shard_hybrid_user"
                 }
             ]
@@ -5737,6 +6060,14 @@
                 }
             ]
         },
+        "transaction_file_attachments": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
         "transaction_property_values": {
             "column_vindexes": [
                 {
@@ -5745,7 +6076,23 @@
                 }
             ]
         },
+        "transaction_translations": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
         "transactions_cost_item": {
+            "column_vindexes": [
+                {
+                    "column": "shop_id",
+                    "name": "etsy_shard_hybrid_shop"
+                }
+            ]
+        },
+        "transactions_data": {
             "column_vindexes": [
                 {
                     "column": "shop_id",
@@ -6833,7 +7180,79 @@
                 }
             ]
         },
-        "shop_content_review_audit": {
+        "user_paybybank_details": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "guest_user_paybybank_details": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_guest_user"
+                }
+            ]
+        },
+        "user_paybybank_accounts": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "guest_user_paybybank_accounts": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_guest_user"
+                }
+            ]
+        },
+        "user_paybybank_payment_initiations": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "guest_user_paybybank_payment_initiations": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_guest_user"
+                }
+            ]
+        },
+        "guest_user_stripe_messages": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_guest_user"
+                }
+            ]
+        },
+        "user_stripe_messages": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "vendor_content_review": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "vendor_content_review_queue_handler": {
             "column_vindexes": [
                 {
                     "column": "shop_id",
@@ -6841,11 +7260,35 @@
                 }
             ]
         },
-        "shop_content_review_settings": {
+        "vendor_content_review_result": {
             "column_vindexes": [
                 {
-                    "column": "shop_id",
-                    "name": "etsy_shard_hybrid_shop"
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "vendor_content_review_revision": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "vendor_content_review_snapshot": {
+            "column_vindexes": [
+                {
+                    "column": "user_id",
+                    "name": "etsy_shard_hybrid_user"
+                }
+            ]
+        },
+        "ssat_score": {
+            "column_vindexes": [
+                {
+                    "column": "buyer_id",
+                    "name": "etsy_shard_hybrid_user"
                 }
             ]
         }
@@ -6919,6 +7362,19 @@
             },
             "type": "etsy_hybrid"
         },
+        "etsy_shard_hybrid_carts_index": {
+            "type": "etsy_hybrid",
+            "params": {
+                "cache_size": "20000",
+                "from": "cart_id",
+                "path": "/opt/vitess/vtdataroot/dbindex.db",
+                "table": "carts_index",
+                "threshold": "0",
+                "to": "ksid",
+                "vindex_a": "etsy_sqlite_lookup_unique",
+                "vindex_b": "hash"
+            }
+        },
         "etsy_shard_hybrid_checkout_audit": {
             "params": {
                 "cache_size": "20000",
@@ -6970,6 +7426,19 @@
                 "vindex_b": "hash"
             },
             "type": "etsy_hybrid"
+        },
+        "etsy_shard_hybrid_facebook_account": {
+            "type": "etsy_hybrid",
+            "params": {
+                "cache_size": "2000",
+                "from": "facebook_account_id",
+                "path": "/opt/vitess/vtdataroot/dbindex.db",
+                "table": "facebook_accounts_index",
+                "to": "ksid",
+                "vindex_a": "etsy_sqlite_lookup_unique",
+                "vindex_b": "hash",
+                "threshold": "0"
+            }
         },
         "etsy_shard_hybrid_finds_page": {
             "params": {
@@ -7039,9 +7508,9 @@
         "etsy_shard_hybrid_guest_user": {
             "params": {
                 "cache_size": "20000",
-                "from": "guest_user_id",
+                "from": "user_id",
                 "path": "/opt/vitess/vtdataroot/dbindex.db",
-                "table": "guest_users_index",
+                "table": "combined_users_index",
                 "threshold": "0",
                 "to": "ksid",
                 "vindex_a": "etsy_sqlite_lookup_unique",
@@ -7055,6 +7524,19 @@
                 "from": "human_task_id",
                 "path": "/opt/vitess/vtdataroot/dbindex.db",
                 "table": "human_tasks_index",
+                "threshold": "0",
+                "to": "ksid",
+                "vindex_a": "etsy_sqlite_lookup_unique",
+                "vindex_b": "hash"
+            },
+            "type": "etsy_hybrid"
+        },
+        "etsy_shard_hybrid_images": {
+            "params": {
+                "cache_size": "2000",
+                "from": "owner_id",
+                "path": "/opt/vitess/vtdataroot/dbindex.db",
+                "table": "images",
                 "threshold": "0",
                 "to": "ksid",
                 "vindex_a": "etsy_sqlite_lookup_unique",
@@ -7145,7 +7627,7 @@
                 "cache_size": "20000",
                 "from": "user_id",
                 "path": "/opt/vitess/vtdataroot/dbindex.db",
-                "table": "users_index",
+                "table": "combined_users_index",
                 "threshold": "0",
                 "to": "ksid",
                 "vindex_a": "etsy_sqlite_lookup_unique",
@@ -7159,6 +7641,19 @@
                 "from": "user_case_id",
                 "path": "/opt/vitess/vtdataroot/dbindex.db",
                 "table": "user_case_index",
+                "threshold": "0",
+                "to": "ksid",
+                "vindex_a": "etsy_sqlite_lookup_unique",
+                "vindex_b": "hash"
+            },
+            "type": "etsy_hybrid"
+        },
+        "etsy_shard_hybrid_user_or_guest_user": {
+            "params": {
+                "cache_size": "20000",
+                "from": "user_id",
+                "path": "/opt/vitess/vtdataroot/dbindex.db",
+                "table": "combined_users_index",
                 "threshold": "0",
                 "to": "ksid",
                 "vindex_a": "etsy_sqlite_lookup_unique",
@@ -7191,6 +7686,22 @@
                 "vindex_b": "hash"
             },
             "type": "etsy_hybrid"
+        },
+        "etsy_multisharded_hybrid": {
+            "type": "etsy_multisharded_hybrid",
+            "params": {
+                "type_id_to_vindex": "{\"2\":\"etsy_shard_hybrid_user\",\"3\":\"etsy_shard_hybrid_shop\",\"7\":\"etsy_shard_hybrid_groups_index\",\"16\":\"etsy_shard_hybrid_user_case_index\",\"22\":\"etsy_shard_hybrid_pages_index\",\"32\":\"etsy_shard_hybrid_images\",\"37\":\"etsy_shard_hybrid_images\",\"41\":\"etsy_shard_hybrid_guest_user\",\"42\":\"etsy_shard_hybrid_xylem_asset\"}"
+            }
+        },
+        "etsy_shard_sqlite_arbitrary_key_index": {
+            "type": "etsy_sqlite_lookup_unique",
+            "params": {
+                "cache_size": "2000",
+                "path": "/opt/vitess/vtdataroot/dbindex.db",
+                "table": "arbitrary_key_index",
+                "from": "hash_bucket",
+                "to": "ksid"
+            }
         },
         "unicode_loose_md5": {
             "type": "unicode_loose_md5"

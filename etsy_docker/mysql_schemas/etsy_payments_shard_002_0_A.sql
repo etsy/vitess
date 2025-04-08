@@ -110,6 +110,43 @@ CREATE TABLE `bank_account_verification_tracker_log` (
   KEY `update_date` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `bank_txns` (
+  `bank_txn_id` bigint unsigned NOT NULL,
+  `reference_id` bigint unsigned NOT NULL,
+  `txn_type` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `instrument_type` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `instrument_id` bigint DEFAULT NULL,
+  `payment_initiation_id` bigint DEFAULT NULL,
+  `user_id` bigint DEFAULT NULL,
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `processor_txn_reference` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `original_txn_reference` bigint DEFAULT NULL,
+  `amount` int NOT NULL,
+  `currency` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `iso_country_code` varchar(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payment_gateway` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `posting_date` int unsigned DEFAULT NULL,
+  `shop_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_tail` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_icon_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_institution_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_checking_or_savings` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_fingerprint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payin_entity` varchar(48) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `settlement_entity` varchar(48) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `processor_mid` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`bank_txn_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`),
+  KEY `reference_id` (`reference_id`,`txn_type`,`create_date`),
+  KEY `instrument_id` (`instrument_id`,`instrument_type`,`create_date`),
+  KEY `status` (`status`,`create_date`),
+  KEY `processor_mid_create_date_idx` (`processor_mid`,`create_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `billing_payments` (
   `billing_payment_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL DEFAULT '0',
@@ -229,6 +266,44 @@ CREATE TABLE `cdc_etet` (
   `update_date` int unsigned NOT NULL,
   `f_varchar` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `credit_award_campaigns` (
+  `campaign_id` bigint unsigned NOT NULL,
+  `mnemonic` varchar(127) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'A mnemonic identifier to use across dev and prod',
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `display_descriptor` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'User-facing short descriptor of the credit',
+  `creator_staff_id` bigint unsigned NOT NULL,
+  `budget_source` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Which group''s budget is funding the incentive',
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`campaign_id`),
+  UNIQUE KEY `mnemonic` (`mnemonic`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+CREATE TABLE `credit_awards` (
+  `credit_award_id` bigint unsigned NOT NULL,
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'whether the credit is active or exhausted',
+  `user_id` bigint unsigned NOT NULL,
+  `original_balance` int NOT NULL COMMENT 'full value of the credit',
+  `available_balance` int NOT NULL COMMENT 'set to original_balance value at creation, then deducted from as purchases are made with the credit balance',
+  `currency_code` char(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `is_locked` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'boolean indicating if gift card is locked',
+  `exhausted_date` int unsigned DEFAULT NULL,
+  `campaign_id` bigint unsigned NOT NULL,
+  `source_type` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Model type of the associated award source',
+  `source_id` bigint NOT NULL,
+  `source_details_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'JSON with additional award source details',
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  `expiration_date` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`credit_award_id`),
+  KEY `user_id` (`user_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 CREATE TABLE `debezium_signal` (
@@ -776,6 +851,7 @@ CREATE TABLE `payoneer_accounts` (
   `create_date` int unsigned NOT NULL,
   `update_date` int unsigned NOT NULL,
   `deleted` tinyint NOT NULL DEFAULT '0',
+  `environment` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`payoneer_account_id`),
   KEY `shop_id_idx` (`shop_id`),
   KEY `payoneer_id_idx` (`payoneer_id`),
@@ -1275,6 +1351,20 @@ CREATE TABLE `subscriptions` (
   KEY `update_date` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+CREATE TABLE `tds_card_arts` (
+  `tds_card_art_id` bigint unsigned NOT NULL,
+  `tds_reference_id` bigint unsigned NOT NULL,
+  `card_art_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `locale` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `create_date` int unsigned NOT NULL,
+  `update_date` int unsigned NOT NULL,
+  PRIMARY KEY (`tds_card_art_id`),
+  UNIQUE KEY `tds_reference_id__idx` (`tds_reference_id`),
+  KEY `card_art_name__locale__idx` (`card_art_name`(8),`locale`),
+  KEY `create_date__idx` (`create_date`),
+  KEY `update_date__idx` (`update_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
 CREATE TABLE `tds_gift_cards` (
   `tds_gift_card_id` bigint unsigned NOT NULL,
   `tds_reference_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'non-redeemable unique identifier returned from TDS',
@@ -1415,8 +1505,9 @@ CREATE TABLE `youlend_prequalifications` (
   `prequal_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `prequal_date` bigint unsigned DEFAULT NULL,
   `prequal_amount` int unsigned DEFAULT NULL,
+  `marketing_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `marketing_status_date` bigint unsigned DEFAULT NULL,
   `currency` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `has_clicked_link` tinyint(1) DEFAULT '0',
   `create_date` bigint unsigned NOT NULL,
   `update_date` bigint unsigned NOT NULL,
   `process_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',

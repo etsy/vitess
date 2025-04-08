@@ -88,3 +88,5 @@ venv
 
 .scannerwork
 report
+
+etsy_docker/datadir/

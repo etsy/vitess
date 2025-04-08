@@ -938,6 +938,7 @@ CREATE TABLE `finpay_ingestor_jobs` (
   `next_process_date` int unsigned NOT NULL DEFAULT '0' COMMENT 'The time the job should next be picked up for processing',
   `state_retry_count` int NOT NULL DEFAULT '0' COMMENT 'Count of attempts made to process state given in status field',
   `environment` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `source_mode` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT 'How the source was identified. Should be AUTO if source was identified automatically by algorithm, SCHEDULED if source was set on a schedule, or MANUAL if source was specified with e.g. --report-date or --source-file command-line parameters',
   `source_hostname` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Hostname of primary source file, if provided by ingestor',
   `source_pathname` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Path to primary source file, if provided by ingestor',
   `source_filename` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Name of primary source file, if provided by ingestor',
@@ -1983,6 +1984,8 @@ CREATE TABLE `youlend_messages` (
   PRIMARY KEY (`youlend_message_id`),
   KEY `environment` (`environment`),
   KEY `next_process_date_composite` (`process_state`,`environment`,`next_process_date`,`update_date`),
-  KEY `lead_id` (`lead_id`)
+  KEY `lead_id` (`lead_id`),
+  KEY `create_date` (`create_date`),
+  KEY `update_date` (`update_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
