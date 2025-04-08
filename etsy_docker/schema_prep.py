@@ -38,6 +38,11 @@ def cat_files(out: Path):
         out.unlink(missing_ok=True)
 
 
+# pre-clean any existing generated files in output dir, excluding "000" bootstrapping files for now...
+for f in Path("mysql_schemas").glob("*.*"):
+    if not f.name.startswith("0"):
+        f.unlink()
+
 for dataset_dir in args.schema_dir.iterdir():
     if dataset_dir.is_dir():
         # sharded datasets get two databases created
