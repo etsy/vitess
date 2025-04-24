@@ -1,7 +1,7 @@
-FROM golang:1.18.10-alpine3.17 AS go_builder
+# FROM golang:1.18.10-alpine3.17 AS go_builder
 
 # switch to newer go version for playing around with Vitess v21
-# FROM golang:1.23.5-alpine3.21 AS go_builder
+FROM golang:1.23.5-alpine3.21 AS go_builder
 
 RUN apk add --update --no-cache bash gcc git libtool musl-dev ca-certificates
 
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     go build -o /vitess/etsy_docker/bin -trimpath -ldflags="-extldflags=-static -w -s" ./...
 
 
-FROM node:16-alpine3.17 AS node_builder
+FROM node:23-alpine3.21 AS node_builder
 COPY ./web/vtadmin /vitess/web/vtadmin
 WORKDIR /vitess/web/vtadmin
 
@@ -47,9 +47,9 @@ RUN npm run build
 FROM alpine:3.17 AS debugger
 
 # the mysql-client that's available is the MariaDB version, dunno how important that is right now?
-# $ mysql --version 
+# $ mysql --version
 # mysql  Ver 15.1 Distrib 10.6.16-MariaDB, for Linux (x86_64) using readline 5.1
-RUN apk add --update --no-cache bash curl jq mysql-client sqlite 
+RUN apk add --update --no-cache bash curl jq mysql-client sqlite
 
 # Create non-root vitess user
 RUN addgroup --gid 3306 vitess && \
